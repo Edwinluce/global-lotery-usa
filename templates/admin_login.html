@@ -1,0 +1,17 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin - Global Lottery</title>
+<style>body{background:#0a1931;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial}.box{background:#fff;padding:30px;border-radius:16px;width:90%;max-width:350px} input{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border-radius:8px} button{width:100%;padding:12px;background:#0f2a6d;color:#fff;border:none;border-radius:8px;font-weight:800;margin-top:10px}</style></head>
+<body>
+<div class="box">
+<h2 style="color:#0f2a6d;text-align:center">🔐 ADMIN GLOBAL LOTTERY</h2>
+<input id="user" placeholder="Usuario Admin" value="Globallotery">
+<input id="pass" type="password" placeholder="Contraseña" value="">
+<button onclick="loginAdmin()">Entrar al Panel</button>
+<p style="font-size:11px;color:#888;text-align:center;margin-top:10px">Acceso solo para administrador</p>
+</div>
+<script>
+function loginAdmin(){
+ fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:document.getElementById('user').value,pass:document.getElementById('pass').value})}).then(r=>r.json()).then(d=>{if(d.ok) location.href='/admin'; else alert(d.msg)});
+}
+</script>
+</body></html>
