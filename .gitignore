@@ -1,0 +1,4 @@
+*.db
+init_db
+intance/
+__pycache__/
