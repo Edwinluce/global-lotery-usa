@@ -1,0 +1,31 @@
+import sqlite3
+from datetime import datetime, timedelta
+con = sqlite3.connect('animalitos.db'); c=con.cursor()
+c.execute("DROP TABLE IF EXISTS usuarios")
+c.execute("DROP TABLE IF EXISTS sorteos")
+c.execute("DROP TABLE IF EXISTS apuestas")
+c.execute("DROP TABLE IF EXISTS animales")
+c.execute("""CREATE TABLE usuarios (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ email TEXT UNIQUE,
+ password TEXT,
+ telefono TEXT,
+ saldo INTEGER DEFAULT 0,
+ fecha_registro TEXT)""")
+c.execute("CREATE TABLE animales (id INTEGER PRIMARY KEY, nombre TEXT)")
+c.execute("""CREATE TABLE sorteos (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT,
+ recaudacion INTEGER, fondo_premios INTEGER, margen_plataforma INTEGER,
+ jackpot INTEGER, seed TEXT, hash_verificacion TEXT)""")
+c.execute("""CREATE TABLE apuestas (
+ id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER,
+ animal_id INTEGER, monto INTEGER, fecha TEXT)""")
+
+animales = [(1,"Perro"),(2,"Gato"),(3,"Ratón"),(4,"Conejo"),(5,"Zorro"),(6,"Tigre"),(7,"León"),(8,"Elefante"),(9,"Mono"),(10,"Gallina"),(11,"Gallo"),(12,"Cerdo"),(13,"Vaca"),(14,"Caballo"),(15,"Alpaca"),(16,"Vicuña"),(17,"Cóndor Andino"),(18,"Oso de Anteojos"),(19,"Puma"),(20,"Gallito de las Rocas"),(21,"Caimán"),(22,"Serpiente"),(23,"Rana"),(24,"Delfín Rosado"),(25,"Guacamayo")]
+c.executemany("INSERT INTO animales VALUES (?,?)", animales)
+cierre = datetime.now() + timedelta(hours=1)
+cierre = cierre.replace(minute=0, second=0, microsecond=0)
+c.execute("INSERT INTO sorteos (fecha_hora_cierre, estado) VALUES (?, 'ABIERTO')", (cierre.isoformat(),))
+con.commit(); con.close()
+print("DB lista - usuarios con saldo 0")

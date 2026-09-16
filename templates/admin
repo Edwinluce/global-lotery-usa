@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin - Global Lottery</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{background:#0a0a0a;color:#fff;padding:12px}
+.top{display:flex;justify-content:space-between;align-items:center;background:#111;border:2px solid #d4a853;border-radius:12px;padding:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
+.card{background:#111;border:1px solid #222;border-radius:14px;padding:14px;margin:8px 0}
+.btn{border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:800}
+.btn-green{background:#22c55e;color:#fff}.btn-red{background:#ef4444;color:#fff}.btn-gold{background:#d4a853;color:#000}.btn-dark{background:#222;color:#fff;border:1px solid #444}
+.btn-dark.active{background:#d4a853;color:#000;box-shadow:0 0 10px #d4a853}
+.tabs{display:flex;gap:6px;margin:12px 0;flex-wrap:wrap;overflow-x:auto}
+.tab{background:#1a1a1a;border:1px solid #333;padding:10px 14px;border-radius:10px;cursor:pointer;color:#aaa;white-space:nowrap}
+.tab.active{background:#d4a853;color:#000;font-weight:800}
+.tab.retiro-tab{border-color:#ff4757;color:#ff4757}
+.tab.retiro-tab.active{background:#ff4757;color:#fff}
+.sorteo-item{border:1px solid #333;border-radius:10px;padding:10px;margin:8px 0;background:#0f0f0f;cursor:pointer}
+.detalle{margin-top:10px;background:#000;border-radius:10px;padding:10px;display:none}
+.animal-chip{background:#111;border:1px solid #333;border-radius:12px;padding:8px;text-align:center;min-width:75px}
+.animal-chip.win{border-color:#22c55e;box-shadow:0 0 8px #22c55e}
+.badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800}
+.badge.pendiente{background:#ffcc4d;color:#000}
+.badge.aprobado{background:#22c55e;color:#fff}
+.badge.rechazado{background:#ef4444;color:#fff}
+</style>
+</head>
+<body>
+
+<div class="top">
+<div><b>🦁 ADMIN GLOBAL</b><br><small>BCP {{bcp_cuenta}} | {{ 'PAUSADA' if pausado else 'ACTIVA' }} - {{tiempo_min}} min</small></div>
+<div><a href="/admin/usuarios" class="btn btn-gold">👥 Usuarios</a> <a href="/logout" class="btn" style="background:#333;color:#fff">Salir</a></div>
+</div>
+
+<div class="grid">
+<div class="card">💰 Recaudado<br><b style="font-size:22px">S/ {{total_recaudado}}</b></div>
+<div class="card">📈 Tu 25%<br><b style="font-size:22px;color:#22c55e">S/ {{ganancia_25}}</b></div>
+<div class="card">🏆 Pagado 75%<br><b>S/ {{total_pagado}}</b></div>
+<div class="card">👥 {{total_users}} usuarios<br><button class="btn btn-red" style="margin-top:6px;font-size:11px" onclick="fetch('/api/admin/reiniciar-ganancias',{method:'POST'}).then(()=>location.reload())">Reiniciar</button></div>
+</div>
+
+<div class="card" style="border-color:#22c55e">
+<h3>🎮 Control Sala</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+<button class="btn btn-red" onclick="fetch('/api/admin/pausar-sala',{method:'POST'}).then(()=>location.reload())">⏸️ Pausar</button>
+<button class="btn btn-green" onclick="fetch('/api/admin/activar-sala',{method:'POST'}).then(()=>location.reload())">▶️ Activar</button>
+<button class="btn btn-gold" onclick="fetch('/api/admin/forzar-sorteo',{method:'POST'}).then(r=>r.json()).then(d=>{alert(d.msg);location.reload()})">🎲 Forzar</button>
+</div>
+<div style="margin-top:10px">
+<button class="btn btn-dark {{'active' if tiempo_min==15}}" onclick="cambiarTiempo(15)">15 min</button>
+<button class="btn btn-dark {{'active' if tiempo_min==30}}" onclick="cambiarTiempo(30)">30 min</button>
+<button class="btn btn-dark {{'active' if tiempo_min==60}}" onclick="cambiarTiempo(60)">60 min</button>
+</div>
+</div>
+
+<div class="tabs">
+<div class="tab active" onclick="showTab('recargas',event)">💳 Recargas ({{count_pend}})</div>
+<div class="tab" onclick="showTab('animales',event)">🦁 Animales Salidos</div>
+<div class="tab" onclick="showTab('historial',event)">📜 Ganancias 75%</div>
+<div class="tab" onclick="showTab('apuestas',event)">🎯 Apuestas Actual</div>
+<div class="tab retiro-tab" onclick="showTab('retiros',event)" id="tabBtnRetiros">💸 Retiros</div>
+</div><div id="tab-recargas">
+{% for r in recargas_pendientes %}
+<div class="card" style="border-left:4px solid #f59e0b">
+<b>{{r[7]}}</b> S/ {{r[2]}} Op {{r[3]}} <button class="btn btn-green" onclick="fetch('/api/admin/aprobar-recarga/{{r[0]}}',{method:'POST'}).then(()=>location.reload())">✅</button> <button class="btn btn-red" onclick="fetch('/api/admin/rechazar-recarga/{{r[0]}}',{method:'POST'}).then(()=>location.reload())">❌</button>
+{% if r[6] %}<br><a href="/{{r[6]}}" target="_blank"><img src="/{{r[6]}}" style="max-width:200px;border-radius:8px;margin-top:6px"></a>{% endif %}
+</div>
+{% endfor %}
+</div>
+
+<div id="tab-animales" style="display:none">
+<div class="card">
+<h3>🦁 Historial de Animales que han salido - Últimos 50</h3>
+<div id="animalesHistorial" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+{% for h in historial %}
+<div class="animal-chip" id="chip-{{h[0]}}">
+<div style="font-size:10px;color:#777">ID {{h[0]}} - {{h[1][11:16] if h[1] else ''}}</div>
+<div style="font-size:28px" class="emoji-{{h[0]}}">?</div>
+<div style="font-size:10px;color:#d4a853" class="name-{{h[0]}}">N° {{h[2] if h[2] is not none else '-'}}</div>
+<div style="font-size:9px;color:#aaa">{{h[3]}} - S/{{h[4] or 0}} recaudado</div>
+</div>
+{% endfor %}
+</div>
+</div>
+</div>
+
+<div id="tab-historial" style="display:none">
+<div class="card">
+<h3>📜 Cálculo 75% Proporcional - Toca para ver desglose</h3>
+{% for h in historial %}
+<div class="sorteo-item" onclick="verDetalle({{h[0]}})">
+<b>ID {{h[0]}}</b> - {{h[3]}} - Ganador N° {{h[2]}} - Rec S/{{h[4] or 0}} | Tu S/{{h[5] or 0}} | Fondo S/{{h[6] or 0}}
+<div id="detalle-{{h[0]}}" class="detalle"></div>
+</div>
+{% endfor %}
+</div>
+</div>
+
+<div id="tab-apuestas" style="display:none">
+<div class="card"><h3>Apuestas sala actual {{sorteo_actual[0] if sorteo_actual else 0}}</h3>
+{% for a in apuestas %}<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #222">{{a[0][11:19]}} - {{a[1]}} - {{a[2]}} - {{a[3]}} S/{{a[4]}}</div>{% endfor %}
+</div>
+</div>
+
+<div id="tab-retiros" style="display:none">
+<div class="card" style="border-color:#ff4757">
+<h3 style="color:#ff4757">💸 Solicitudes de Retiro</h3>
+<small style="color:#aaa">Primero yapea al cliente, luego das APROBAR.</small>
+<table style="width:100%;margin-top:12px;border-collapse:collapse;font-size:12px">
+<thead><tr><th style="padding:8px;background:#1a1a1a">Fecha</th><th style="padding:8px;background:#1a1a1a">Usuario</th><th style="padding:8px;background:#1a1a1a">Monto</th><th style="padding:8px;background:#1a1a1a">Yape/Plin</th><th style="padding:8px;background:#1a1a1a">Estado</th><th style="padding:8px;background:#1a1a1a">Acción</th></tr></thead>
+<tbody id="listaRetiros"><tr><td colspan="6" style="padding:20px;text-align:center">Cargando...</td></tr></tbody>
+</table>
+</div>
+</div>
+
+<script>
+const animales=[["Perro","🐶"],["Gato","🐱"],["Ratón","🐭"],["Conejo","🐰"],["Zorro","🦊"],["Tigre","🐯"],["León","🦁"],["Elefante","🐘"],["Mono","🐒"],["Gallina","🐔"],["Gallo","🐓"],["Cerdo","🐷"],["Vaca","🐄"],["Caballo","🐴"],["Alpaca","🦙"],["Vicuña","🦙"],["Cóndor","🦅"],["Oso","🐻"],["Puma","🦁"],["Gallito","🐦"],["Caimán","🐊"],["Serpiente","🐍"],["Rana","🐸"],["Delfin","🐬"],["Guacamayo","🦜"]];
+
+function showTab(t,e){
+ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+ document.getElementById('tab-recargas').style.display='none';
+ document.getElementById('tab-animales').style.display='none';
+ document.getElementById('tab-historial').style.display='none';
+ document.getElementById('tab-apuestas').style.display='none';
+ document.getElementById('tab-retiros').style.display='none';
+ document.getElementById('tab-'+t).style.display='block';
+ if(e) e.target.classList.add('active');
+ if(t=='animales') pintarAnimales();
+ if(t=='retiros') cargarRetiros();
+}
+function cambiarTiempo(m){ fetch('/api/admin/set-tiempo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({minutos:m})}).then(()=>location.reload()) }
+function verDetalle(sid){
+  let div=document.getElementById('detalle-'+sid);
+  if(div.style.display=='block'){div.style.display='none';return;}
+  div.style.display='block'; div.innerHTML='Cargando...';
+  fetch('/api/admin/detalle-sorteo/'+sid).then(r=>r.json()).then(d=>{
+    if(!d.ganadores || d.ganadores.length==0){ div.innerHTML=`Fondo S/${d.fondo||0} - Tu 25% S/${d.margen||0} - Nadie apostó al N°${d.ganador}`; return;}
+    let html=`<table style="width:100%;font-size:12px"><tr><th>Usuario</th><th>Apostó</th><th>%</th><th>Premio</th></tr>`;
+    d.ganadores.forEach(g=>{ html+=`<tr><td>${g.email}</td><td>S/${g.apostado}</td><td>${g.porcentaje}%</td><td style="color:#22c55e"><b>S/${g.premio}</b></td></tr>` });
+    html+=`</table>`; div.innerHTML=html;
+  });
+}
+function pintarAnimales(){
+  document.querySelectorAll('.animal-chip').forEach(chip=>{
+    let numTxt=chip.querySelector('[class^="name-"]').innerText.replace('N°','').trim();
+    let num=parseInt(numTxt); if(isNaN(num)) return;
+    let idx=num-1; if(idx<0||idx>=25) return;
+    let a=animales[idx];
+    chip.querySelector('[class^="emoji-"]').innerText=a[1];
+    chip.querySelector('[class^="name-"]').innerText=a[0]+' #'+num;
+  });
+}
+async function cargarRetiros(){
+  let tbody=document.getElementById('listaRetiros');
+  tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center">Cargando...</td></tr>';
+  try{
+    let r=await fetch('/api/retiros');
+    let j=await r.json();
+    if(!Array.isArray(j)){ tbody.innerHTML='<tr><td colspan="6">Error: '+JSON.stringify(j)+'</td></tr>'; return; }
+    if(j.length==0){ tbody.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center">Sin solicitudes</td></tr>'; return; }
+    tbody.innerHTML=j.map(x=>`<tr style="border-bottom:1px solid #222">
+      <td style="padding:8px">${x.fecha||''}</td>
+      <td style="padding:8px"><b>${x.usuario||''}</b></td>
+      <td style="padding:8px"><b style="color:#ff4757">S/ ${x.monto}</b></td>
+      <td style="padding:8px;max-width:150px;word-break:break-all">${x.banco_info || x.yape_plin || ''}</td>
+      <td style="padding:8px"><span class="badge ${x.estado}">${x.estado}</span></td>
+      <td style="padding:8px">${x.estado=='pendiente'?`<button class="btn btn-green" onclick="aprobarRetiro(${x.id},'aprobar')">✅ Aprobar</button> <button class="btn btn-red" style="margin-left:4px" onclick="aprobarRetiro(${x.id},'rechazar')">X</button>`:x.estado}</td>
+    </tr>`).join('');
+    let pend=j.filter(x=>x.estado=='pendiente').length;
+    document.getElementById('tabBtnRetiros').innerText= pend>0? `💸 Retiros (${pend})` : `💸 Retiros`;
+  }catch(e){
+    tbody.innerHTML='<tr><td colspan="6">Error JS: '+e+'</td></tr>';
+  }
+}
+async function aprobarRetiro(id,acc){
+ if(acc=='aprobar' &&!confirm('¿YA LE YAPEASTE?')) return;
+ if(acc=='rechazar' &&!confirm('¿Rechazar y devolver saldo?')) return;
+ let res=await fetch(`/api/retiro/${id}/${acc}`,{method:'POST'});
+ let j=await res.json();
+ alert(j.msg||j.error||'Listo');
+ cargarRetiros();
+}
+pintarAnimales();
+</script>
+</body>
+</html>

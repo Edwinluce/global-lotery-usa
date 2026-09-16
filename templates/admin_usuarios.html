@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Usuarios - Global Lottery</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{background:#0a0a0a;color:#fff;padding:12px}
+.top{background:#111;border:2px solid #d4a853;border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center}
+.card{background:#111;border:1px solid #222;border-radius:12px;padding:12px;margin:10px 0}
+input{padding:8px;border-radius:8px;border:1px solid #333;background:#000;color:#fff;width:120px}
+.btn{border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:800}
+.btn-green{background:#22c55e;color:#fff}
+.btn-gold{background:#d4a853;color:#000}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px;border-bottom:1px solid #222;text-align:left}
+th{color:#d4a853}
+</style>
+</head>
+<body>
+<div class="top">
+<div><b>👥 GESTIÓN DE USUARIOS</b><br><small>BCP {{bcp_cuenta}}</small></div>
+<div><a href="/admin" class="btn btn-gold">← Volver Admin</a></div>
+</div>
+
+<div class="card">
+<input type="text" id="buscador" placeholder="Buscar email..." style="width:100%;margin-bottom:10px" onkeyup="filtrar()">
+<table>
+<thead><tr><th>ID</th><th>Email / Tel</th><th>Saldo</th><th>Nuevo Saldo</th><th>Acción</th></tr></thead>
+<tbody id="tbody">
+{% for u in usuarios %}
+<tr>
+<td>{{u[0]}}</td>
+<td>{{u[1]}}<br><small style="color:#aaa">{{u[2]}}</small></td>
+<td><b id="saldo-{{u[0]}}">S/ {{u[3]}}</b></td>
+<td><input type="number" id="input-{{u[0]}}" value="{{u[3]}}" min="0"></td>
+<td><button class="btn btn-green" onclick="editarSaldo({{u[0]}})">💾 Guardar</button></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+<script>
+function editarSaldo(userId){
+  let nuevo = document.getElementById('input-'+userId).value;
+  if(nuevo===''){alert('Pon un saldo');return}
+  fetch('/api/admin/saldo-usuario',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({user_id: userId, saldo: parseInt(nuevo)})
+  }).then(r=>r.json()).then(d=>{
+    if(d.ok){
+      document.getElementById('saldo-'+userId).innerText='S/ '+nuevo;
+      alert('✅ Saldo actualizado a S/ '+nuevo+' para usuario ID '+userId);
+    }else{
+      alert('❌ Error');
+    }
+  });
+}
+function filtrar(){
+  let q=document.getElementById('buscador').value.toLowerCase();
+  document.querySelectorAll('#tbody tr').forEach(tr=>{
+    tr.style.display = tr.innerText.toLowerCase().includes(q)? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>
