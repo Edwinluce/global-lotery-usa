@@ -512,26 +512,6 @@ def detalle_sorteo(sid):
     ganadores=[{"email":r[0],"apostado":r[1],"porcentaje":round(r[1]/total*100,1),"premio":int(fondo*(r[1]/total))} for r in rows]
     return jsonify({"ganador":ganador,"fondo":fondo,"margen":margen,"ganadores":ganadores})
 
-@app.route('/borrar-todo-usa')
-def borrar_todo_usa():
-    import os, sqlite3, glob
-    for f in glob.glob("*.db") + ["init_db", "loteria.db", "users.db", "database.db"]:
-        try:
-            if os.path.exists(f):
-                os.remove(f)
-        except:
-            pass
-    # vuelve a crear las tablas vacías
-    try:
-        conn = sqlite3.connect('loteria.db')
-        conn.execute('DROP TABLE IF EXISTS users')
-        conn.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE, password TEXT)')
-        conn.commit()
-        conn.close()
-        return "BASE DE DATOS DE USA BORRADA Y LIMPIA. Ya puedes registrarte. Ahora borra este codigo."
-    except Exception as e:
-        return f"Intento de borrado: {e} - Archivos borrados, intenta registrarte ahora"
-
 if __name__=='__main__':
     init_db()
     app.run(host='0.0.0.0', port=5000, debug=True)
