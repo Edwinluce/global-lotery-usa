@@ -11,7 +11,12 @@ MI_CUENTA_BCP = "19106864219053"
 MI_CCI_BCP = "00219110686421905358"
 MI_LINK_IZIPAY = "https://izipayya.page.link/TU_LINK_AQUI"
 MI_NOMBRE_BCP = "Globallotery"
+# BORRADO FORZADO - SOLO PARA LIMPIAR UNA VEZ
+if os.path.exists('animalitos.db'):
+    os.remove('animalitos.db')
 
+if os.path.exists('loteria.db'):
+    os.remove('loteria.db')
 def db():
     return sqlite3.connect('animalitos.db', check_same_thread=False)
 
