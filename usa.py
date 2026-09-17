@@ -201,5 +201,27 @@ def admin_panel():
     con.close()
     return render_template('admin.html', sorteo_actual=sorteo_actual, recargas_pendientes=recargas, bcp_cuenta=MI_CUENTA_BCP)
 
+@app.route('/api/admin/aprobar-recarga', methods=['POST'])
+def aprobar_recarga():
+    if not session.get('admin'): return jsonify({"ok":False})
+    d=request.json; rid=d['id']
+    con=db(); c=con.cursor()
+    c.execute("SELECT user_id, monto FROM recargas_bcp WHERE id=?", (rid,))
+    row=c.fetchone()
+    if row:
+        c.execute("UPDATE usuarios SET saldo=saldo+? WHERE id=?", (row[1], row[0]))
+        c.execute("UPDATE recargas_bcp SET estado='aprobado' WHERE id=?", (rid,))
+        con.commit()
+    con.close()
+    return jsonify({"ok":True,"msg":f"Aprobado S/{row[1]}" if row else "Error"})
+
+@app.route('/admin/usuarios')
+def admin_usuarios_page():
+    if not session.get('admin'): return redirect('/admin/login')
+    con=db(); c=con.cursor()
+    c.execute("SELECT id,email,telefono,saldo FROM usuarios ORDER BY id DESC")
+    usuarios=c.fetchall(); con.close()
+    return render_template('admin_usuarios.html', usuarios=usuarios)
+
 if __name__=='__main__':
     app.run(host='0.0.0.0', port=10000)
