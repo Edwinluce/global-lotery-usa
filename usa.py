@@ -317,5 +317,43 @@ def test_apuesta():
     con.commit(); con.close()
     return "Apuestas de prueba creadas!"
 
+@app.route('/api/mis-apuestas')
+def api_mis_apuestas():
+    if 'user' not in session: return jsonify([])
+    con=db(); c=con.cursor()
+    c.execute("""
+        SELECT s.id, s.fecha_hora_cierre, an.nombre, a.monto, s.animal_ganador, s.estado
+        FROM apuestas a
+        JOIN sorteos s ON s.id=a.sorteo_id
+        JOIN animales an ON an.id=a.animal_id
+        WHERE a.usuario_id=? ORDER BY a.fecha DESC LIMIT 50
+    """, (session['user'],))
+    rows=c.fetchall()
+    con.close()
+    # s.animal_ganador es el ID, buscamos nombre
+    lista=[]
+    for r in rows:
+        gano = "En juego"
+        if r[5] in ('PAGADO','FINALIZADO'):
+            con=db(); c=con.cursor()
+            c.execute("SELECT nombre FROM animales WHERE id=?", (r[4],))
+            nom=c.fetchone()
+            gano = nom[0] if nom else f"ID {r[4]}"
+            con.close()
+        lista.append({"sorteo":r[0],"fecha":r[1][:16] if r[1] else "","mi_animal":r[2],"monto":r[3],"ganador":gano,"estado":r[5]})
+    return jsonify(lista)
+
+@app.route('/api/historial-global')
+def api_historial_global():
+    con=db(); c=con.cursor()
+    c.execute("""
+        SELECT s.id, s.fecha_hora_cierre, an.nombre, s.recaudacion
+        FROM sorteos s LEFT JOIN animales an ON an.id=s.animal_ganador
+        WHERE s.estado IN ('PAGADO','FINALIZADO') AND s.animal_ganador IS NOT NULL
+        ORDER BY s.id DESC LIMIT 30
+    """)
+    rows=c.fetchall(); con.close()
+    return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "","ganador":r[2],"recaudado":r[3]} for r in rows])
+
 if __name__=='__main__':
     app.run(host='0.0.0.0', port=10000)

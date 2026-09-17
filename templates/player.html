@@ -67,6 +67,37 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 <div><div class="saldo"><small>balance</small> <b id="saldo">$ 0.00</b> <div class="plus" id="btn-plus">+</div> <button class="btn-retiro-top" id="btn-retiro-top">WITHDRAW</button></div>
 <div style="text-align:right;font-size:10px;margin-top:4px">ID: {{ session['user'] if session['user'] else 0 }} | Zelle weinderlyn@gmail.com</div></div>
 </div>
+<div style="display:flex;gap:10px;margin:12px 0">
+  <button onclick="verMisApuestas()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">🎯 Mis Jugadas</button>
+  <button onclick="verHistorial()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">📜 Últimos que Salieron</button>
+</div>
+
+<div id="panelHistorial" style="display:none;background:#151515;border:1px solid #252525;border-radius:16px;padding:14px;margin-bottom:12px">
+  <div style="display:flex;justify-content:space-between"><b id="tituloHistorial"></b><span onclick="document.getElementById('panelHistorial').style.display='none'" style="cursor:pointer">X</span></div>
+  <div id="contenidoHistorial" style="margin-top:10px;font-size:13px"></div>
+</div>
+
+<script>
+async function verMisApuestas(){
+  document.getElementById('panelHistorial').style.display='block';
+  document.getElementById('tituloHistorial').innerText='🎯 Mis últimas apuestas';
+  document.getElementById('contenidoHistorial').innerText='Cargando...';
+  let r=await fetch('/api/mis-apuestas'); let data=await r.json();
+  if(data.length==0){document.getElementById('contenidoHistorial').innerHTML='Aún no has apostado'; return;}
+  let html='<table style="width:100%;border-collapse:collapse"><tr><th>Sorteo</th><th>Mi Animal</th><th>Ganó</th><th>Monto</th></tr>';
+  data.forEach(x=>{let color = x.mi_animal==x.ganador?'#1ee66d':'#fff'; html+=`<tr><td>#${x.sorteo}</td><td>${x.mi_animal}</td><td style="color:${color};font-weight:bold">${x.ganador}</td><td>S/${x.monto}</td></tr>`});
+  html+='</table>';
+  document.getElementById('contenidoHistorial').innerHTML=html;
+}
+async function verHistorial(){
+  document.getElementById('panelHistorial').style.display='block';
+  document.getElementById('tituloHistorial').innerText='📜 Últimos animales que salieron';
+  document.getElementById('contenidoHistorial').innerText='Cargando...';
+  let r=await fetch('/api/historial-global'); let data=await r.json();
+  let html=''; data.forEach(x=>{html+=`#${x.id} - ${x.fecha} - <b>🦁 ${x.ganador}</b> (S/ ${x.recaudado})<br>`});
+  document.getElementById('contenidoHistorial').innerHTML=html || 'Aún no hay sorteos finalizados';
+}
+</script>
 <div class="info">
 <div class="box"><small>CURRENT PERIOD</small><b id="periodo">{{ sorteo[0] if sorteo else 0 }}</b></div>
 <div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
