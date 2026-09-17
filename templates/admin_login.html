@@ -1,14 +1,29 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Admin Login</title>
-<style>body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;color:white;font-family:Arial}.box{background:#222;padding:30px;border-radius:10px;width:300px} input{width:100%;padding:10px;margin:8px 0;border-radius:5px;border:none} button{width:100%;padding:10px;background:#00ff88;border:none;border-radius:5px;font-weight:bold;cursor:pointer}</style>
-</head><body>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Login</title>
+<style>
+body{background:#080808;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:Arial}
+.box{background:#151515;border:1px solid #d8b87a;padding:30px;border-radius:20px;width:90%;max-width:340px}
+h2{color:#e9c97a;text-align:center}
+input{width:100%;padding:14px;margin:8px 0;border-radius:12px;border:1px solid #2a2a2a;background:#0f0f0f;color:white;box-sizing:border-box}
+button{width:100%;padding:14px;background:#e9c97a;border:0;border-radius:12px;font-weight:900;margin-top:10px;cursor:pointer}
+</style>
+</head>
+<body>
 <div class="box">
-<h2>Admin Globallotery</h2>
-{% if error %}<p style="color:red">{{ error }}</p>{% endif %}
-<form method="POST">
-<input name="user" placeholder="Usuario" required>
-<input name="pass" type="password" placeholder="Clave" required>
-<button>Entrar</button>
-</form>
+<h2>🦁 ADMIN GLOBAL</h2>
+<input id="u" placeholder="Usuario" value="Globallotery">
+<input id="p" type="password" placeholder="Clave" value="Diosmeama.1">
+<button onclick="login()">ENTRAR</button>
+<p id="msg" style="color:#ff3b3b;text-align:center"></p>
 </div>
-</body></html>
+<script>
+async function login(){
+ let r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:document.getElementById('u').value,pass:document.getElementById('p').value})});
+ let j=await r.json();
+ if(j.ok) location.href='/admin'; else document.getElementById('msg').innerText='Clave incorrecta';
+}
+</script>
+</body>
+</html>

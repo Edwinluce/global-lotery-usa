@@ -2,66 +2,131 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Admin - Globallotery USA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADMIN GLOBAL</title>
 <style>
-body{background:#0f1115;color:white;font-family:Arial;padding:20px}
-h1{color:#00ff88}
-.card{background:#1e222e;padding:15px;border-radius:10px;margin-bottom:15px;border:1px solid #333}
+*{box-sizing:border-box}
+body{background:#070707;color:#fff;font-family: -apple-system, BlinkMacSystemFont, Arial; margin:0; padding:14px}
+.card{background:#151515;border:1px solid #252525;border-radius:20px;padding:18px;margin-bottom:12px}
+.card-top{border:1.5px solid #d8b87a;display:flex;justify-content:space-between;align-items:center}
+.badge{color:#d8b87a;font-size:13px;margin-top:4px}
+.btn{border:0;padding:11px 18px;border-radius:14px;font-weight:800;cursor:pointer;font-size:14px}
+.btn-gold{background:#e9c97a;color:#000}
+.btn-dark{background:#242424;color:#fff}
+.btn-red{background:#ff2d2d;color:#fff}
+.btn-green{background:#1ee66d;color:#000}
+.btn-beige{background:#f3e1a6;color:#000}
+.btn-gray{background:#202020;color:#9a9a9a;border:1px solid #2a2a2a}
+.btn-outline-red{border:1px solid #ff3a3a;color:#ff3a3a;background:transparent}
+.title{font-size:15px;opacity:.7;margin-bottom:6px}
+.value{font-size:32px;font-weight:900}
+.value-green{color:#1ee66d}
+.flex{display:flex;gap:10px;flex-wrap:wrap}
+.active{box-shadow:0 0 0 2px #e9c97a inset; background:#e9c97a!important;color:#000!important}
+.dot{width:8px;height:8px;background:#1ee66d;border-radius:50%;display:inline-block;box-shadow:0 0 8px #1ee66d}
+@media(max-width:400px){.value{font-size:26px}}
 table{width:100%;border-collapse:collapse;margin-top:10px}
-th,td{border:1px solid #333;padding:8px;text-align:left;font-size:14px}
-th{background:#2a2f45}
-button{background:#00c566;color:white;border:0;padding:6px 12px;border-radius:5px;cursor:pointer}
-button:hover{background:#00ff88;color:black}
-a{color:#00d9ff}
-.badge{padding:3px 7px;border-radius:5px;font-size:12px}
-.pending{background:orange;color:black}
+th,td{border:1px solid #2a2a2a;padding:8px;font-size:13px;text-align:left}
+th{background:#1e1e1e;color:#d8b87a}
+a{color:#d8b87a;text-decoration:none}
 </style>
 </head>
 <body>
-<h1>🎲 Panel Admin USA</h1>
 
-<div class="card">
-<b>Sorteo Actual:</b> {{ sorteo_actual[0] if sorteo_actual else 'No hay sorteo activo' }} <br>
-<b>Cierra:</b> {{ sorteo_actual[1] if sorteo_actual else '' }} <br>
-<b>BCP:</b> {{ bcp_cuenta }} | <b>Yape:</b> {{ yape_qr }}
+<div class="card card-top">
+  <div>
+    <div style="font-weight:900;font-size:18px;letter-spacing:.5px">🦁 ADMIN GLOBAL</div>
+    <div class="badge"><span class="dot"></span> BCP {{ bcp_cuenta }} | {{ estado }} - {{ tiempo_min }} min</div>
+  </div>
+  <div class="flex">
+    <button class="btn btn-gold" onclick="location.href='/admin/usuarios'">👥 Usuarios</button>
+    <button class="btn btn-dark" onclick="location.href='/admin/logout'">Salir</button>
+  </div>
 </div>
 
 <div class="card">
-<h3>💰 Recargas BCP Pendientes</h3>
-{% if recargas_pendientes %}
-<table>
-<tr><th>ID</th><th>Usuario ID</th><th>Monto</th><th>Operación</th><th>Voucher</th><th>Acción</th></tr>
-{% for r in recargas_pendientes %}
-<tr>
-<td>{{ r[0] }}</td>
-<td>{{ r[1] }}</td>
-<td>S/ {{ r[2] }}</td>
-<td>{{ r[3] }}</td>
-<td>{% if r[5] %}<a href="/{{ r[5] }}" target="_blank">Ver Voucher</a>{% else %}{{ r[6] or 'Sin file' }}{% endif %}</td>
-<td><button onclick="aprobar({{ r[0] }})">Aprobar</button></td>
-</tr>
-{% endfor %}
-</table>
-{% else %}
-<p>No hay recargas pendientes</p>
-{% endif %}
+  <div class="title">💰 Recaudado</div>
+  <div class="value">S/ {{ recaudado }}</div>
 </div>
 
 <div class="card">
-<a href="/admin/usuarios">👥 Ver Todos los Usuarios</a> &nbsp; | &nbsp; <a href="/logout" style="color:#ff4444">Cerrar Sesión</a>
+  <div class="title">📈 Tu 25%</div>
+  <div class="value value-green">S/ {{ tu_25 }}</div>
+</div>
+
+<div class="card">
+  <div class="title">🏆 Pagado 75%</div>
+  <div class="value">S/ {{ pagado_75 }}</div>
+</div>
+
+<div class="card">
+  <div class="title">👥 {{ num_usuarios }} usuarios</div>
+  <button class="btn btn-red" style="margin-top:10px" onclick="if(confirm('¿Reiniciar sala? Se borran apuestas'))control('reiniciar')">Reiniciar</button>
+</div>
+
+<div class="card" style="border:1.5px solid #1ee66d33">
+  <div style="font-weight:900;margin-bottom:12px">🎮 Control Sala</div>
+  <div class="flex">
+    <button class="btn btn-red" onclick="control('pausar')">⏸ Pausar</button>
+    <button class="btn btn-green" onclick="control('activar')">▶️ Activar</button>
+    <button class="btn btn-beige" onclick="alert('Elige animal para forzar victoria')">🎲 Forzar</button>
+  </div>
+  <div class="flex" style="margin-top:12px">
+    <button class="btn btn-gray {% if tiempo_min==15 %}active{% endif %}" onclick="controlTiempo(15)">15 min</button>
+    <button class="btn btn-gray {% if tiempo_min==30 %}active{% endif %}" onclick="controlTiempo(30)">30 min</button>
+    <button class="btn btn-gray {% if tiempo_min==60 %}active{% endif %}" onclick="controlTiempo(60)">60 min</button>
+  </div>
+  {% if pausado %}<div style="color:#ff2d2d;margin-top:10px;font-weight:bold">⛔ SALA PAUSADA - No se aceptan apuestas</div>{% endif %}
+</div>
+
+<div class="flex">
+  <button class="btn btn-gold" onclick="document.getElementById('recargas').scrollIntoView()">💳 Recargas ({{ recargas_count }})</button>
+  <button class="btn btn-gray">🦁 Animales Salidos</button>
+</div>
+<div class="flex" style="margin-top:10px">
+  <button class="btn btn-gray">📜 Ganancias 75%</button>
+  <button class="btn btn-gray">🎯 Apuestas Actual</button>
+</div>
+<div style="margin-top:10px">
+  <button class="btn btn-outline-red">💸 Retiros</button>
+</div>
+
+<!-- RECARGAS PENDIENTES -->
+<div class="card" id="recargas" style="margin-top:14px">
+  <div style="font-weight:900">💳 Recargas BCP Pendientes</div>
+  {% if recargas_pendientes %}
+  <table>
+    <tr><th>ID</th><th>Email</th><th>Monto</th><th>Operación</th><th>Voucher</th><th>Acción</th></tr>
+    {% for r in recargas_pendientes %}
+    <tr>
+      <td>{{ r[0] }}</td>
+      <td>{{ r[7] }}</td>
+      <td>S/ {{ r[2] }}</td>
+      <td>{{ r[3] }}</td>
+      <td>{% if r[6] %}<a href="/{{ r[6] }}" target="_blank">Ver</a>{% else %} - {% endif %}</td>
+      <td><button class="btn btn-green" style="padding:6px 10px" onclick="aprobar({{ r[0] }})">Aprobar</button></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div style="opacity:.5;margin-top:10px">No hay recargas pendientes</div>
+  {% endif %}
 </div>
 
 <script>
+async function control(accion){
+  await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion})});
+  location.reload();
+}
+async function controlTiempo(min){
+  await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'tiempo',min})});
+  location.reload();
+}
 async function aprobar(id){
- if(!confirm('¿Aprobar recarga ID '+id+'? Se sumará el saldo.')) return;
- let res = await fetch('/api/admin/aprobar-recarga',{
-   method:'POST',
-   headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({id:id})
- });
- let data = await res.json();
- alert(data.msg);
- location.reload();
+  if(!confirm('¿Aprobar S/?')) return;
+  let res = await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  let j = await res.json();
+  alert(j.msg); location.reload();
 }
 </script>
 </body>
