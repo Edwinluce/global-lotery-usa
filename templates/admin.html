@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Admin - Globallotery USA</title>
+<style>
+body{background:#0f1115;color:white;font-family:Arial;padding:20px}
+h1{color:#00ff88}
+.card{background:#1e222e;padding:15px;border-radius:10px;margin-bottom:15px;border:1px solid #333}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{border:1px solid #333;padding:8px;text-align:left;font-size:14px}
+th{background:#2a2f45}
+button{background:#00c566;color:white;border:0;padding:6px 12px;border-radius:5px;cursor:pointer}
+button:hover{background:#00ff88;color:black}
+a{color:#00d9ff}
+.badge{padding:3px 7px;border-radius:5px;font-size:12px}
+.pending{background:orange;color:black}
+</style>
+</head>
+<body>
+<h1>🎲 Panel Admin USA</h1>
+
+<div class="card">
+<b>Sorteo Actual:</b> {{ sorteo_actual[0] if sorteo_actual else 'No hay sorteo activo' }} <br>
+<b>Cierra:</b> {{ sorteo_actual[1] if sorteo_actual else '' }} <br>
+<b>BCP:</b> {{ bcp_cuenta }} | <b>Yape:</b> {{ yape_qr }}
+</div>
+
+<div class="card">
+<h3>💰 Recargas BCP Pendientes</h3>
+{% if recargas_pendientes %}
+<table>
+<tr><th>ID</th><th>Usuario ID</th><th>Monto</th><th>Operación</th><th>Voucher</th><th>Acción</th></tr>
+{% for r in recargas_pendientes %}
+<tr>
+<td>{{ r[0] }}</td>
+<td>{{ r[1] }}</td>
+<td>S/ {{ r[2] }}</td>
+<td>{{ r[3] }}</td>
+<td>{% if r[5] %}<a href="/{{ r[5] }}" target="_blank">Ver Voucher</a>{% else %}{{ r[6] or 'Sin file' }}{% endif %}</td>
+<td><button onclick="aprobar({{ r[0] }})">Aprobar</button></td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No hay recargas pendientes</p>
+{% endif %}
+</div>
+
+<div class="card">
+<a href="/admin/usuarios">👥 Ver Todos los Usuarios</a> &nbsp; | &nbsp; <a href="/logout" style="color:#ff4444">Cerrar Sesión</a>
+</div>
+
+<script>
+async function aprobar(id){
+ if(!confirm('¿Aprobar recarga ID '+id+'? Se sumará el saldo.')) return;
+ let res = await fetch('/api/admin/aprobar-recarga',{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({id:id})
+ });
+ let data = await res.json();
+ alert(data.msg);
+ location.reload();
+}
+</script>
+</body>
+</html>
