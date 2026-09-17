@@ -184,8 +184,26 @@ def api_saldo():
     return jsonify({"saldo":row[0] if row else 0})
 
 ADMIN_USER="Globallotery"; ADMIN_PASS_HASH=hash_pass("Diosmeama.1")
+
 @app.route('/admin/login')
-def admin_login_page(): return render_template('admin_login.html')
+def admin_login_page():
+    # Login sin depender de plantilla para probar
+    return """
+    <html><body style="font-family:Arial; padding:20px; background:#111; color:#fff;">
+    <h2>ADMIN LOGIN</h2>
+    <input id="u" placeholder="Usuario" value="Globallotery" style="padding:10px;width:100%;margin:5px 0"><br>
+    <input id="p" type="password" placeholder="Clave" value="Diosmeama.1" style="padding:10px;width:100%;margin:5px 0"><br>
+    <button onclick="login()" style="padding:10px 20px;background:green;color:white;border:none;">ENTRAR</button>
+    <p id="msg"></p>
+    <script>
+    async function login(){
+      let r = await fetch('/api/admin/login',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user:document.getElementById('u').value, pass:document.getElementById('p').value})});
+      let j = await r.json();
+      if(j.ok) location.href='/admin'; else document.getElementById('msg').innerText='Error de clave';
+    }
+    </script>
+    </body></html>
+    """
 @app.route('/api/admin/login', methods=['POST'])
 def api_admin_login():
     d=request.json
