@@ -118,10 +118,11 @@ a{color:#d8b87a;text-decoration:none}
   </div>
 </div>
 
-<div class="modal" id="modalAnimales">
+<div class="modal" id="modalApuestas">
   <div class="modal-box">
-    <div style="display:flex;justify-content:space-between"><h3 style="margin:0">🦁 Animales Salidos</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
-    <div id="tablaAnimales" style="margin-top:10px"></div>
+    <div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">🎯 Apuestas Actual</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
+    <div id="totalApuestas" style="margin:10px 0;color:#1ee66d;font-weight:bold"></div>
+    <div id="tablaApuestas"></div>
   </div>
 </div>
 
@@ -134,13 +135,26 @@ async function aprobar(id){
  let r=await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
  let j=await r.json(); alert(j.msg); location.reload();
 }
-async function abrirGanancias(){
- document.getElementById('modalGanancias').style.display='flex';
- let r=await fetch('/api/admin/ganancias'); let data=await r.json();
- let html='<tr><th>ID</th><th>Recaudado</th><th>Tu 25%</th><th>Estado</th></tr>'; let total25=0;
- data.forEach(x=>{total25+=x.tu25; html+=`<tr><td>#${x.id}</td><td>S/ ${x.recaudado}</td><td style="color:#1ee66d">S/ ${x.tu25}</td><td>${x.estado}</td></tr>`});
- html+=`<tr><th colspan=2>Total</th><th style="color:#1ee66d">S/ ${total25}</th><th></th></tr>`;
- document.getElementById('tablaGanancias').innerHTML=html;
+async function abrirApuestas(){
+ document.getElementById('modalApuestas').style.display='flex';
+ let r=await fetch('/api/admin/apuestas-actual');
+ let data=await r.json();
+
+ if(!data.lista || data.lista.length==0){
+   document.getElementById('tablaApuestas').innerHTML='<tr><td colspan=4 style="text-align:center;opacity:.5">Aún no hay apuestas en este sorteo.<br>Cuando un usuario apueste, aquí aparecerá en vivo.</td></tr>';
+   document.getElementById('totalApuestas').innerText=`Sorteo #${data.sorteo_id} - Sin apuestas aún`;
+   return;
+ }
+
+ let htmlPorAnimal='<div style="margin-bottom:12px"><b>Resumen por animal:</b><br>';
+ data.por_animal.forEach(x=>{ htmlPorAnimal+=`🦁 ${x.animal}: ${x.cantidad} apuestas - S/ ${x.total}<br>` });
+ htmlPorAnimal+='</div><hr style="border-color:#2a2a2a">';
+
+ let html='<tr><th>Hora</th><th>Usuario</th><th>Animal</th><th>Monto</th></tr>';
+ data.lista.forEach(x=>{ html+=`<tr><td>${x.fecha}</td><td>${x.email.split('@')[0]}</td><td><b>${x.animal}</b></td><td>S/ ${x.monto}</td></tr>` });
+
+ document.getElementById('tablaApuestas').innerHTML= htmlPorAnimal + html;
+ document.getElementById('totalApuestas').innerText=`TOTAL AHORA: S/ ${data.total} | ${data.lista.length} apuestas | Sorteo #${data.sorteo_id}`;
 }
 async function abrirApuestas(){
  document.getElementById('modalApuestas').style.display='flex';
