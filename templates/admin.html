@@ -5,6 +5,55 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ADMIN GLOBAL</title>
 <style>
+<!-- PEGA EL MISMO CSS DE ANTES + ESTO AL FINAL DEL STYLE -->
+<style>
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#000000cc;display:none;justify-content:center;align-items:center;z-index:99;padding:15px}
+.modal-box{background:#151515;border:1px solid #d8b87a;border-radius:20px;padding:20px;width:100%;max-width:500px;max-height:80vh;overflow:auto}
+</style>
+
+<!-- CAMBIA LOS 2 BOTONES DE ABAJO POR ESTOS CON ONCLICK -->
+<div class="flex" style="margin-top:10px">
+  <button class="btn btn-gray" onclick="abrirGanancias()">📜 Ganancias 75%</button>
+  <button class="btn btn-gray" onclick="abrirApuestas()">🎯 Apuestas Actual</button>
+</div>
+
+<!-- AGREGA ESTOS 2 MODALES AL FINAL ANTES DE </body> -->
+<div class="modal" id="modalGanancias">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">📜 Ganancias 75%</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
+    <table id="tablaGanancias" style="margin-top:12px"><tr><th>Sorteo</th><th>Recaudado</th><th>Tu 25%</th><th>Pago 75%</th></tr></table>
+  </div>
+</div>
+
+<div class="modal" id="modalApuestas">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">🎯 Apuestas Actual</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
+    <div id="totalApuestas" style="margin:10px 0;opacity:.7"></div>
+    <table id="tablaApuestas"><tr><th>Hora</th><th>Usuario</th><th>Animal</th><th>Monto</th></tr></table>
+  </div>
+</div>
+
+<script>
+function cerrar(){document.querySelectorAll('.modal').forEach(m=>m.style.display='none')}
+async function abrirGanancias(){
+ document.getElementById('modalGanancias').style.display='flex';
+ let r=await fetch('/api/admin/ganancias'); let data=await r.json();
+ let html='<tr><th>ID</th><th>Fecha</th><th>Recaudado</th><th>Tu 25%</th><th>Estado</th></tr>';
+ let total25=0;
+ data.forEach(x=>{ total25+=x.tu25; html+=`<tr><td>#${x.id}</td><td>${x.fecha}</td><td>S/ ${x.recaudado}</td><td style="color:#1ee66d">S/ ${x.tu25}</td><td>${x.estado}</td></tr>` });
+ document.getElementById('tablaGanancias').innerHTML=html + `<tr><th colspan=3>Total Ganancia</th><th style="color:#1ee66d">S/ ${total25}</th></tr>`;
+}
+async function abrirApuestas(){
+ document.getElementById('modalApuestas').style.display='flex';
+ let r=await fetch('/api/admin/apuestas-actual'); let data=await r.json();
+ let html='<tr><th>Hora</th><th>Usuario</th><th>Animal</th><th>Monto</th></tr>';
+ let total=0;
+ data.forEach(x=>{ total+=x.monto; html+=`<tr><td>${x.fecha}</td><td>${x.email.split('@')[0]}</td><td>${x.animal}</td><td>S/ ${x.monto}</td></tr>` });
+ document.getElementById('tablaApuestas').innerHTML=html;
+ document.getElementById('totalApuestas').innerText=`Total apostado ahora: S/ ${total} | ${data.length} apuestas`;
+}
+</script>
+
 *{box-sizing:border-box}
 body{background:#070707;color:#fff;font-family: -apple-system, BlinkMacSystemFont, Arial; margin:0; padding:14px}
 .card{background:#151515;border:1px solid #252525;border-radius:20px;padding:18px;margin-bottom:12px}
@@ -127,7 +176,8 @@ async function aprobar(id){
   let res = await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
   let j = await res.json();
   alert(j.msg); location.reload();
-}
+} 
+
 </script>
 </body>
 </html>
