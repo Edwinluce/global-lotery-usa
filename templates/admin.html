@@ -5,55 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ADMIN GLOBAL</title>
 <style>
-<!-- PEGA EL MISMO CSS DE ANTES + ESTO AL FINAL DEL STYLE -->
-<style>
-.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#000000cc;display:none;justify-content:center;align-items:center;z-index:99;padding:15px}
-.modal-box{background:#151515;border:1px solid #d8b87a;border-radius:20px;padding:20px;width:100%;max-width:500px;max-height:80vh;overflow:auto}
-</style>
-
-<!-- CAMBIA LOS 2 BOTONES DE ABAJO POR ESTOS CON ONCLICK -->
-<div class="flex" style="margin-top:10px">
-  <button class="btn btn-gray" onclick="abrirGanancias()">📜 Ganancias 75%</button>
-  <button class="btn btn-gray" onclick="abrirApuestas()">🎯 Apuestas Actual</button>
-</div>
-
-<!-- AGREGA ESTOS 2 MODALES AL FINAL ANTES DE </body> -->
-<div class="modal" id="modalGanancias">
-  <div class="modal-box">
-    <div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">📜 Ganancias 75%</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
-    <table id="tablaGanancias" style="margin-top:12px"><tr><th>Sorteo</th><th>Recaudado</th><th>Tu 25%</th><th>Pago 75%</th></tr></table>
-  </div>
-</div>
-
-<div class="modal" id="modalApuestas">
-  <div class="modal-box">
-    <div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">🎯 Apuestas Actual</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
-    <div id="totalApuestas" style="margin:10px 0;opacity:.7"></div>
-    <table id="tablaApuestas"><tr><th>Hora</th><th>Usuario</th><th>Animal</th><th>Monto</th></tr></table>
-  </div>
-</div>
-
-<script>
-function cerrar(){document.querySelectorAll('.modal').forEach(m=>m.style.display='none')}
-async function abrirGanancias(){
- document.getElementById('modalGanancias').style.display='flex';
- let r=await fetch('/api/admin/ganancias'); let data=await r.json();
- let html='<tr><th>ID</th><th>Fecha</th><th>Recaudado</th><th>Tu 25%</th><th>Estado</th></tr>';
- let total25=0;
- data.forEach(x=>{ total25+=x.tu25; html+=`<tr><td>#${x.id}</td><td>${x.fecha}</td><td>S/ ${x.recaudado}</td><td style="color:#1ee66d">S/ ${x.tu25}</td><td>${x.estado}</td></tr>` });
- document.getElementById('tablaGanancias').innerHTML=html + `<tr><th colspan=3>Total Ganancia</th><th style="color:#1ee66d">S/ ${total25}</th></tr>`;
-}
-async function abrirApuestas(){
- document.getElementById('modalApuestas').style.display='flex';
- let r=await fetch('/api/admin/apuestas-actual'); let data=await r.json();
- let html='<tr><th>Hora</th><th>Usuario</th><th>Animal</th><th>Monto</th></tr>';
- let total=0;
- data.forEach(x=>{ total+=x.monto; html+=`<tr><td>${x.fecha}</td><td>${x.email.split('@')[0]}</td><td>${x.animal}</td><td>S/ ${x.monto}</td></tr>` });
- document.getElementById('tablaApuestas').innerHTML=html;
- document.getElementById('totalApuestas').innerText=`Total apostado ahora: S/ ${total} | ${data.length} apuestas`;
-}
-</script>
-
 *{box-sizing:border-box}
 body{background:#070707;color:#fff;font-family: -apple-system, BlinkMacSystemFont, Arial; margin:0; padding:14px}
 .card{background:#151515;border:1px solid #252525;border-radius:20px;padding:18px;margin-bottom:12px}
@@ -73,18 +24,19 @@ body{background:#070707;color:#fff;font-family: -apple-system, BlinkMacSystemFon
 .flex{display:flex;gap:10px;flex-wrap:wrap}
 .active{box-shadow:0 0 0 2px #e9c97a inset; background:#e9c97a!important;color:#000!important}
 .dot{width:8px;height:8px;background:#1ee66d;border-radius:50%;display:inline-block;box-shadow:0 0 8px #1ee66d}
-@media(max-width:400px){.value{font-size:26px}}
 table{width:100%;border-collapse:collapse;margin-top:10px}
 th,td{border:1px solid #2a2a2a;padding:8px;font-size:13px;text-align:left}
 th{background:#1e1e1e;color:#d8b87a}
 a{color:#d8b87a;text-decoration:none}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#000000e6;display:none;justify-content:center;align-items:flex-start;z-index:99;padding:15px;overflow:auto}
+.modal-box{background:#151515;border:1px solid #d8b87a;border-radius:20px;padding:20px;width:100%;max-width:520px;margin-top:40px}
 </style>
 </head>
 <body>
 
 <div class="card card-top">
   <div>
-    <div style="font-weight:900;font-size:18px;letter-spacing:.5px">🦁 ADMIN GLOBAL</div>
+    <div style="font-weight:900;font-size:18px">🦁 ADMIN GLOBAL</div>
     <div class="badge"><span class="dot"></span> BCP {{ bcp_cuenta }} | {{ estado }} - {{ tiempo_min }} min</div>
   </div>
   <div class="flex">
@@ -93,91 +45,116 @@ a{color:#d8b87a;text-decoration:none}
   </div>
 </div>
 
-<div class="card">
-  <div class="title">💰 Recaudado</div>
-  <div class="value">S/ {{ recaudado }}</div>
-</div>
-
-<div class="card">
-  <div class="title">📈 Tu 25%</div>
-  <div class="value value-green">S/ {{ tu_25 }}</div>
-</div>
-
-<div class="card">
-  <div class="title">🏆 Pagado 75%</div>
-  <div class="value">S/ {{ pagado_75 }}</div>
-</div>
-
-<div class="card">
-  <div class="title">👥 {{ num_usuarios }} usuarios</div>
-  <button class="btn btn-red" style="margin-top:10px" onclick="if(confirm('¿Reiniciar sala? Se borran apuestas'))control('reiniciar')">Reiniciar</button>
-</div>
+<div class="card"><div class="title">💰 Recaudado</div><div class="value">S/ {{ recaudado }}</div></div>
+<div class="card"><div class="title">📈 Tu 25%</div><div class="value value-green">S/ {{ tu_25 }}</div></div>
+<div class="card"><div class="title">🏆 Pagado 75%</div><div class="value">S/ {{ pagado_75 }}</div></div>
+<div class="card"><div class="title">👥 {{ num_usuarios }} usuarios</div><button class="btn btn-red" style="margin-top:10px" onclick="if(confirm('¿Reiniciar sala?'))control('reiniciar')">Reiniciar</button></div>
 
 <div class="card" style="border:1.5px solid #1ee66d33">
   <div style="font-weight:900;margin-bottom:12px">🎮 Control Sala</div>
   <div class="flex">
     <button class="btn btn-red" onclick="control('pausar')">⏸ Pausar</button>
     <button class="btn btn-green" onclick="control('activar')">▶️ Activar</button>
-    <button class="btn btn-beige" onclick="alert('Elige animal para forzar victoria')">🎲 Forzar</button>
+    <button class="btn btn-beige" onclick="alert('Pronto: Forzar animal ganador')">🎲 Forzar</button>
   </div>
   <div class="flex" style="margin-top:12px">
     <button class="btn btn-gray {% if tiempo_min==15 %}active{% endif %}" onclick="controlTiempo(15)">15 min</button>
     <button class="btn btn-gray {% if tiempo_min==30 %}active{% endif %}" onclick="controlTiempo(30)">30 min</button>
     <button class="btn btn-gray {% if tiempo_min==60 %}active{% endif %}" onclick="controlTiempo(60)">60 min</button>
   </div>
-  {% if pausado %}<div style="color:#ff2d2d;margin-top:10px;font-weight:bold">⛔ SALA PAUSADA - No se aceptan apuestas</div>{% endif %}
+  {% if pausado %}<div style="color:#ff2d2d;margin-top:10px;font-weight:bold">⛔ SALA PAUSADA</div>{% endif %}
 </div>
 
 <div class="flex">
   <button class="btn btn-gold" onclick="document.getElementById('recargas').scrollIntoView()">💳 Recargas ({{ recargas_count }})</button>
-  <button class="btn btn-gray">🦁 Animales Salidos</button>
+  <button class="btn btn-gray" onclick="abrirAnimales()">🦁 Animales Salidos</button>
 </div>
 <div class="flex" style="margin-top:10px">
-  <button class="btn btn-gray">📜 Ganancias 75%</button>
-  <button class="btn btn-gray">🎯 Apuestas Actual</button>
+  <button class="btn btn-gray" onclick="abrirGanancias()">📜 Ganancias 75%</button>
+  <button class="btn btn-gray" onclick="abrirApuestas()">🎯 Apuestas Actual</button>
 </div>
 <div style="margin-top:10px">
-  <button class="btn btn-outline-red">💸 Retiros</button>
+  <button class="btn btn-outline-red" onclick="abrirRetiros()">💸 Retiros</button>
 </div>
 
-<!-- RECARGAS PENDIENTES -->
 <div class="card" id="recargas" style="margin-top:14px">
   <div style="font-weight:900">💳 Recargas BCP Pendientes</div>
   {% if recargas_pendientes %}
   <table>
-    <tr><th>ID</th><th>Email</th><th>Monto</th><th>Operación</th><th>Voucher</th><th>Acción</th></tr>
+    <tr><th>Email</th><th>Monto</th><th>Op</th><th>Voucher</th><th>OK</th></tr>
     {% for r in recargas_pendientes %}
     <tr>
-      <td>{{ r[0] }}</td>
       <td>{{ r[7] }}</td>
       <td>S/ {{ r[2] }}</td>
       <td>{{ r[3] }}</td>
-      <td>{% if r[6] %}<a href="/{{ r[6] }}" target="_blank">Ver</a>{% else %} - {% endif %}</td>
+      <td>{% if r[6] %}<a href="/{{ r[6] }}" target="_blank">Ver</a>{% else %}-{% endif %}</td>
       <td><button class="btn btn-green" style="padding:6px 10px" onclick="aprobar({{ r[0] }})">Aprobar</button></td>
     </tr>
     {% endfor %}
   </table>
-  {% else %}
-  <div style="opacity:.5;margin-top:10px">No hay recargas pendientes</div>
-  {% endif %}
+  {% else %}<div style="opacity:.5;margin-top:10px">No hay recargas pendientes</div>{% endif %}
+</div>
+
+<!-- MODALES -->
+<div class="modal" id="modalGanancias">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0;color:#e9c97a">📜 Ganancias</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
+    <table id="tablaGanancias" style="margin-top:12px"></table>
+  </div>
+</div>
+
+<div class="modal" id="modalApuestas">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0;color:#e9c97a">🎯 Apuestas Actual</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
+    <div id="totalApuestas" style="margin:10px 0;opacity:.7"></div>
+    <table id="tablaApuestas"></table>
+  </div>
+</div>
+
+<div class="modal" id="modalRetiros">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between"><h3 style="color:#ff3a3a;margin:0">💸 Retiros Pendientes</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
+    <div id="tablaRetiros" style="margin-top:10px;opacity:.7">Función lista, falta ruta /api/admin/retiros. Si quieres la agrego.</div>
+  </div>
+</div>
+
+<div class="modal" id="modalAnimales">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between"><h3 style="margin:0">🦁 Animales Salidos</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
+    <div id="tablaAnimales" style="margin-top:10px"></div>
+  </div>
 </div>
 
 <script>
-async function control(accion){
-  await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion})});
-  location.reload();
-}
-async function controlTiempo(min){
-  await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'tiempo',min})});
-  location.reload();
-}
+function cerrar(){document.querySelectorAll('.modal').forEach(m=>m.style.display='none')}
+async function control(a){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:a})});location.reload()}
+async function controlTiempo(m){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'tiempo',min:m})});location.reload()}
 async function aprobar(id){
-  if(!confirm('¿Aprobar S/?')) return;
-  let res = await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  let j = await res.json();
-  alert(j.msg); location.reload();
-} 
-
+ if(!confirm('¿Aprobar?')) return;
+ let r=await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+ let j=await r.json(); alert(j.msg); location.reload();
+}
+async function abrirGanancias(){
+ document.getElementById('modalGanancias').style.display='flex';
+ let r=await fetch('/api/admin/ganancias'); let data=await r.json();
+ let html='<tr><th>ID</th><th>Recaudado</th><th>Tu 25%</th><th>Estado</th></tr>'; let total25=0;
+ data.forEach(x=>{total25+=x.tu25; html+=`<tr><td>#${x.id}</td><td>S/ ${x.recaudado}</td><td style="color:#1ee66d">S/ ${x.tu25}</td><td>${x.estado}</td></tr>`});
+ html+=`<tr><th colspan=2>Total</th><th style="color:#1ee66d">S/ ${total25}</th><th></th></tr>`;
+ document.getElementById('tablaGanancias').innerHTML=html;
+}
+async function abrirApuestas(){
+ document.getElementById('modalApuestas').style.display='flex';
+ let r=await fetch('/api/admin/apuestas-actual'); let data=await r.json();
+ let html='<tr><th>Hora</th><th>User</th><th>Animal</th><th>Monto</th></tr>'; let total=0;
+ data.forEach(x=>{total+=x.monto; html+=`<tr><td>${x.fecha}</td><td>${x.email.split('@')[0]}</td><td>${x.animal}</td><td>S/ ${x.monto}</td></tr>`});
+ document.getElementById('tablaApuestas').innerHTML=html;
+ document.getElementById('totalApuestas').innerText=`Total ahora: S/ ${total} | ${data.length} apuestas`;
+}
+function abrirRetiros(){document.getElementById('modalRetiros').style.display='flex'}
+function abrirAnimales(){
+ document.getElementById('modalAnimales').style.display='flex';
+ document.getElementById('tablaAnimales').innerHTML='Pronto: Historial de animales ganadores. Ya tienes la tabla sorteos.';
+}
 </script>
 </body>
 </html>
