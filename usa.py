@@ -240,20 +240,27 @@ def solicitar_retiro():
     if not u or u[0] < monto:
         con.close()
         return jsonify({"ok":False,"msg":f"Saldo insuficiente S/ {u[0] if u else 0}"})
-    # Intenta guardar en las 2 formas posibles de columna
-    try:
-        c.execute(q("INSERT INTO retiros (usuario_id, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
-    except Exception as e1:
-        print("Intento usuario_id fallo:", e1)
-        try:
-            c.execute(q("INSERT INTO retiros (user_id, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
-        except Exception as e2:
-            print("Intento user_id fallo:", e2)
-            con.close()
-            return jsonify({"ok":False,"msg":f"Error BD: {e2}"})
-    con.commit(); con.close()
-    return jsonify({"ok":True, "msg": "Solicitud enviada"})
 
+    ok=False
+    for col in ['user_id', 'usuario_id']: # probamos primero el viejo que es el que tienes en Render
+        try:
+            con.rollback() # limpia el error anterior de postgres
+            c.execute(q(f"INSERT INTO retiros ({col}, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
+            con.commit()
+            ok=True
+            print(f"Retiro guardado con {col}")
+            break
+        except Exception as e:
+            print(f"Fallo con {col}: {e}")
+            con.rollback()
+            continue
+
+    con.close()
+    if ok:
+        return jsonify({"ok":True, "msg": "Solicitud enviada"})
+    else:
+        return jsonify({"ok":False,"msg":"Error BD, contacta admin"})
+    
 @app.route('/api/saldo')
 def api_saldo():
     if 'user' not in session: return jsonify({"saldo":0})
@@ -328,6 +335,7 @@ def api_admin_retiros():
             continue
     con.close()
     return jsonify([{"id":r[0],"user":r[1],"email":r[1],"monto":float(r[2] or 0),"banco":r[3],"estado":r[4],"fecha":str(r[5])[:19] if r[5] else ""} for r in rows])
+
 @app.route('/api/admin/retiros/aprobar', methods=['POST'])
 def api_aprobar_retiro():
     if not session.get('admin'): return jsonify({"ok":False})
