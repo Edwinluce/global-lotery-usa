@@ -422,13 +422,6 @@ def api_admin_apuestas_actual():
     total=sum([x["monto"] for x in lista])
     return jsonify({"lista":lista,"por_animal":por_json,"total":total,"sorteo_id":sid})
 
-@app.route('/api/admin/retiros')
-def api_admin_retiros():
-    if not session.get('admin'): return jsonify([])
-    con=db(); c=con.cursor()
-    c.execute(q("SELECT r.id, u.email, r.monto, r.banco_info, r.estado, r.fecha FROM retiros r LEFT JOIN usuarios u ON u.id=r.user_id WHERE r.estado='pendiente' ORDER BY r.id DESC"))
-    rows=c.fetchall(); con.close()
-    return jsonify([{"id":r[0],"email":r[1],"monto":r[2],"banco":r[3],"estado":r[4],"fecha":r[5]} for r in rows])
 
 @app.route('/admin/usuarios')
 def admin_usuarios_page():
