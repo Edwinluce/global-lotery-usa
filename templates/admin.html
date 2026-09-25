@@ -73,7 +73,7 @@ async function abrirRetiros(){
   let r=await fetch('/api/admin/retiros'); let d=await r.json();
   let h='<tr><th>ID</th><th>User</th><th>Monto</th><th>Estado</th><th>Acción</th></tr>';
   d.forEach(x=>{
-    let btns = x.estado=='PENDIENTE' 
+    let btns = (x.estado||'').toUpperCase()=='PENDIENTE' 
       ? `<button onclick="aprobarRetiro(${x.id})" style="background:green;color:white;padding:5px;border-radius:5px">Aprobar</button> <button onclick="rechazarRetiro(${x.id})" style="background:red;color:white;padding:5px;border-radius:5px">Rechazar</button>` 
       : x.estado;
     h+=`<tr><td>${x.id}</td><td>${x.user}<br><small>${x.email}</small></td><td>S/ ${x.monto}</td><td>${x.estado}</td><td>${btns}</td></tr>`;
