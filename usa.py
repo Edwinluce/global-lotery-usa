@@ -124,18 +124,33 @@ def login_page(): return render_template('login.html')
 @app.route('/api/register', methods=['POST'])
 def api_register():
     try:
-        d=request.json; email=d['email'].strip().lower(); pw=hash_pass(d['password']); tel=d.get('telefono','')
+        d=request.json
+        email=d['email'].strip().lower()
+        pw=hash_pass(d['password'])
+        tel=d.get('telefono','')
+
         con=db(); c=con.cursor()
-        c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,?)"), (email,pw,tel,0,datetime.now().isoformat()))
-        con.commit(); uid=c.lastrowid if not is_postgres() else c.fetchone() or 1
+
         if is_postgres():
-            c.execute(q("SELECT id FROM usuarios WHERE email=?"),(email,)); uid=c.fetchone()[0]
+            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,NOW()) RETURNING id"), (email,pw,tel,0))
+            uid=c.fetchone()[0]
+        else:
+            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,?)"), (email,pw,tel,0, datetime.now().isoformat()))
+            uid=c.lastrowid
+
+        con.commit()
+
+        if is_postgres():
+            # por si acaso confirmamos
+            c.execute(q("SELECT id FROM usuarios WHERE email=?"), (email,))
+            uid=c.fetchone()[0]
+
         con.close()
         session['user']=uid; session['email']=email
         return jsonify({"ok":True})
     except Exception as e:
         print("ERROR REGISTER:", e)
-        return jsonify({"ok":False,"msg": "Correo ya registrado" if "UNIQUE" in str(e) or "duplicate" in str(e).lower() else str(e)})
+        return jsonify({"ok":False,"msg": "Correo ya registrado" if "UNIQUE" in str(e) or "duplicate" in str(e).lower() else "Error: "+str(e)})
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
