@@ -70,24 +70,32 @@ async function aprobar(id){let r=await fetch('/api/admin/aprobar-recarga',{metho
 
 async function abrirRetiros(){
   document.getElementById('modalRetiros').style.display='flex';
-  let r=await fetch('/api/admin/retiros'); let d=await r.json();
-  let h='<tr><th>ID</th><th>User</th><th>Monto</th><th>Estado</th><th>Acción</th></tr>';
+  document.getElementById('tablaRetiros').innerHTML='<tr><td>Cargando retiros...</td></tr>';
+  let r=await fetch('/api/admin/retiros');
+  let d=await r.json();
+  if(!d.length){document.getElementById('tablaRetiros').innerHTML='<tr><td>No hay retiros</td></tr>'; return;}
+  let h='<tr><th>ID</th><th>User</th><th>Monto</th><th>Yape</th><th>Acción</th></tr>';
   d.forEach(x=>{
-    let btns = (x.estado||'').toUpperCase()=='PENDIENTE' 
-      ? `<button onclick="aprobarRetiro(${x.id})" style="background:green;color:white;padding:5px;border-radius:5px">Aprobar</button> <button onclick="rechazarRetiro(${x.id})" style="background:red;color:white;padding:5px;border-radius:5px">Rechazar</button>` 
-      : x.estado;
-    h+=`<tr><td>${x.id}</td><td>${x.user}<br><small>${x.email}</small></td><td>S/ ${x.monto}</td><td>${x.estado}</td><td>${btns}</td></tr>`;
+    let esPendiente = (x.estado||'').toUpperCase()=='PENDIENTE';
+    let btns = esPendiente
+     ? `<button onclick="aprobarRetiro(${x.id})" style="background:#1ee66d;color:#000;padding:6px 10px;border:0;border-radius:8px;font-weight:800;cursor:pointer">✅ APROBAR Y RESTAR</button><br><br><button onclick="rechazarRetiro(${x.id})" style="background:#ff2d2d;color:#fff;padding:5px 10px;border:0;border-radius:8px;cursor:pointer">❌ RECHAZAR</button>`
+      : `<span style="color:${x.estado=='APROBADO'?'#1ee66d':'#ff2d2d'}">${x.estado}</span>`;
+    h+=`<tr><td>#${x.id}</td><td>${x.user}<br><small style="opacity:.7">${x.email}</small><br><small>${x.fecha}</small></td><td><b>S/ ${x.monto}</b></td><td style="word-break:break-all">${x.banco}</td><td>${btns}</td></tr>`;
   });
   document.getElementById('tablaRetiros').innerHTML=h;
 }
+
 async function aprobarRetiro(id){
-  if(!confirm('¿Aprobar y DESCONTAR saldo?')) return;
+  if(!confirm('¿Aprobar retiro #'+id+'? SE DESCONTARÁ el saldo al usuario automáticamente.')) return;
   let res=await fetch('/api/admin/retiros/aprobar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  let j=await res.json(); alert(j.msg); abrirRetiros();
+  let j=await res.json();
+  alert(j.msg || 'Retiro aprobado y saldo descontado');
+  abrirRetiros();
 }
 async function rechazarRetiro(id){
-  if(!confirm('¿Rechazar?')) return;
+  if(!confirm('¿Rechazar retiro #'+id+'? No se descontará saldo.')) return;
   await fetch('/api/admin/retiros/rechazar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  alert('Retiro rechazado');
   abrirRetiros();
 }
 
@@ -116,14 +124,6 @@ async function abrirApuestas(){
    data.lista.forEach(x=>{html+=`<tr><td>${x.fecha}</td><td>${x.email.substring(0,12)}</td><td><b>${x.animal}</b></td><td>S/ ${x.monto}</td></tr>`});
    document.getElementById('tablaApuestas').innerHTML=html;
  }catch(e){document.getElementById('totalApuestas').innerText='Error: '+e}
-}
-async function abrirRetiros(){
- document.getElementById('modalRetiros').style.display='flex';
- let r=await fetch('/api/admin/retiros'); let data=await r.json();
- if(data.length==0){document.getElementById('tablaRetiros').innerHTML='<tr><td>No hay retiros pendientes</td></tr>'; return;}
- let html='<tr><th>Email</th><th>Monto</th><th>Yape</th></tr>';
- data.forEach(x=>{html+=`<tr><td>${x.email}</td><td>S/ ${x.monto}</td><td>${x.banco}</td></tr>`});
- document.getElementById('tablaRetiros').innerHTML=html;
 }
 </script>
 </body>
