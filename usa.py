@@ -234,10 +234,12 @@ def recarga_bcp():
 def solicitar_retiro():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     data=request.get_json(); monto=int(float(data.get("monto",0))); yape=data.get("yape","")
-    con=db(); c=con.cursor(); c.execute(q("SELECT saldo FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
-    if not u or u[0] < monto: con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente S/{u[0] if u else 0}"})
-    c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=?"), (monto, session['user']))
-    c.execute(q("INSERT INTO retiros (user_id, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, "pendiente", datetime.now().isoformat()))
+    con=db(); c=con.cursor(); c.execute(q("SELECT saldo FROM usuarios WHERE id=?"), (session['user'],))
+    u=c.fetchone()
+    if not u or u[0] < monto: con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente S/ {u[0] if u else 0}"})
+
+    # NO restamos saldo aqui
+    c.execute(q("INSERT INTO retiros (user_id, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
     con.commit(); con.close()
     return jsonify({"ok":True})
 
@@ -298,6 +300,42 @@ def api_admin_login():
     if d['user']==ADMIN_USER and hash_pass(d['pass'])==ADMIN_PASS_HASH:
         session['admin']=True; return jsonify({"ok":True})
     return jsonify({"ok":False})
+
+@app.route('/api/admin/retiros')
+def api_admin_retiros():
+    if not session.get('admin'): return jsonify([])
+    con=db(); c=con.cursor()
+    c.execute("""
+      SELECT r.id, u.username, u.email, r.monto, r.estado, r.fecha
+      FROM retiros r JOIN usuarios u ON r.usuario_id = u.id
+      ORDER BY r.id DESC
+    """)
+    rows=c.fetchall(); con.close()
+    return jsonify([{"id":r[0], "user":r[1], "email":r[2], "monto":r[3], "estado":r[4], "fecha":str(r[5])[:19]} for r in rows])
+
+@app.route('/api/admin/retiros/aprobar', methods=['POST'])
+def api_aprobar_retiro():
+    if not session.get('admin'): return jsonify({"ok":False})
+    rid = request.json.get('id')
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT usuario_id, monto FROM retiros WHERE id=?"), (rid,))
+    ret = c.fetchone()
+    if not ret: return jsonify({"ok":False})
+    uid, monto = ret
+    # Ahora si restamos saldo
+    c.execute(q("UPDATE usuarios SET saldo = saldo -? WHERE id=?"), (monto, uid))
+    c.execute(q("UPDATE retiros SET estado='APROBADO' WHERE id=?"), (rid,))
+    con.commit(); con.close()
+    return jsonify({"ok":True, "msg":f"Retiro #{rid} APROBADO, se descontó {monto}"})
+
+@app.route('/api/admin/retiros/rechazar', methods=['POST'])
+def api_rechazar_retiro():
+    if not session.get('admin'): return jsonify({"ok":False})
+    rid = request.json.get('id')
+    con=db(); c=con.cursor()
+    c.execute(q("UPDATE retiros SET estado='RECHAZADO' WHERE id=?"), (rid,))
+    con.commit(); con.close()
+    return jsonify({"ok":True})
 
 @app.route('/admin/logout')
 def admin_logout(): session.pop('admin',None); return redirect('/admin/login')

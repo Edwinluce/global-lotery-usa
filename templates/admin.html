@@ -68,6 +68,29 @@ async function control(a){await fetch('/api/admin/control',{method:'POST',header
 async function controlTiempo(m){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'tiempo',min:m})});location.reload()}
 async function aprobar(id){let r=await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});let j=await r.json();alert(j.msg);location.reload()}
 
+async function abrirRetiros(){
+  document.getElementById('modalRetiros').style.display='flex';
+  let r=await fetch('/api/admin/retiros'); let d=await r.json();
+  let h='<tr><th>ID</th><th>User</th><th>Monto</th><th>Estado</th><th>Acción</th></tr>';
+  d.forEach(x=>{
+    let btns = x.estado=='PENDIENTE' 
+      ? `<button onclick="aprobarRetiro(${x.id})" style="background:green;color:white;padding:5px;border-radius:5px">Aprobar</button> <button onclick="rechazarRetiro(${x.id})" style="background:red;color:white;padding:5px;border-radius:5px">Rechazar</button>` 
+      : x.estado;
+    h+=`<tr><td>${x.id}</td><td>${x.user}<br><small>${x.email}</small></td><td>S/ ${x.monto}</td><td>${x.estado}</td><td>${btns}</td></tr>`;
+  });
+  document.getElementById('tablaRetiros').innerHTML=h;
+}
+async function aprobarRetiro(id){
+  if(!confirm('¿Aprobar y DESCONTAR saldo?')) return;
+  let res=await fetch('/api/admin/retiros/aprobar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  let j=await res.json(); alert(j.msg); abrirRetiros();
+}
+async function rechazarRetiro(id){
+  if(!confirm('¿Rechazar?')) return;
+  await fetch('/api/admin/retiros/rechazar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  abrirRetiros();
+}
+
 async function abrirGanancias(){
  document.getElementById('modalGanancias').style.display='flex';
  let r=await fetch('/api/admin/ganancias'); let data=await r.json();
