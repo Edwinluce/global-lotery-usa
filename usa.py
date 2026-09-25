@@ -234,14 +234,25 @@ def recarga_bcp():
 def solicitar_retiro():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     data=request.get_json(); monto=int(float(data.get("monto",0))); yape=data.get("yape","")
-    con=db(); c=con.cursor(); c.execute(q("SELECT saldo FROM usuarios WHERE id=?"), (session['user'],))
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT saldo FROM usuarios WHERE id=?"), (session['user'],))
     u=c.fetchone()
-    if not u or u[0] < monto: con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente S/ {u[0] if u else 0}"})
-
-    # NO restamos saldo aqui
-    c.execute(q("INSERT INTO retiros (user_id, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
+    if not u or u[0] < monto:
+        con.close()
+        return jsonify({"ok":False,"msg":f"Saldo insuficiente S/ {u[0] if u else 0}"})
+    # Intenta guardar en las 2 formas posibles de columna
+    try:
+        c.execute(q("INSERT INTO retiros (usuario_id, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
+    except Exception as e1:
+        print("Intento usuario_id fallo:", e1)
+        try:
+            c.execute(q("INSERT INTO retiros (user_id, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
+        except Exception as e2:
+            print("Intento user_id fallo:", e2)
+            con.close()
+            return jsonify({"ok":False,"msg":f"Error BD: {e2}"})
     con.commit(); con.close()
-    return jsonify({"ok":True})
+    return jsonify({"ok":True, "msg": "Solicitud enviada"})
 
 @app.route('/api/saldo')
 def api_saldo():
@@ -303,35 +314,20 @@ def api_admin_login():
 
 @app.route('/api/admin/retiros')
 def api_admin_retiros():
-    if not session.get('admin'):
-        return jsonify([])
-    try:
-        con=db(); c=con.cursor()
-        # Intenta con usuario_id (nuevo) y con user_id (viejo) para que siempre funcione
+    if not session.get('admin'): return jsonify([])
+    con=db(); c=con.cursor()
+    rows=[]
+    for col in ['usuario_id', 'user_id']:
         try:
-            c.execute(q("SELECT r.id, u.email, r.monto, r.banco_info, r.estado, r.fecha FROM retiros r LEFT JOIN usuarios u ON u.id=r.usuario_id ORDER BY r.id DESC"))
-        except:
-            c.execute(q("SELECT r.id, u.email, r.monto, r.banco_info, r.estado, r.fecha FROM retiros r LEFT JOIN usuarios u ON u.id=r.user_id ORDER BY r.id DESC"))
-
-        rows=c.fetchall()
-        print(f"RETIROS ENCONTRADOS: {len(rows)}") # para ver en logs de Render
-        con.close()
-        data = []
-        for r in rows:
-            data.append({
-                "id": r[0],
-                "user": r[1] or "sin email",
-                "email": r[1] or "sin email",
-                "monto": float(r[2] or 0),
-                "banco": r[3],
-                "estado": r[4],
-                "fecha": str(r[5])[:19] if r[5] else ""
-            })
-        return jsonify(data)
-    except Exception as e:
-        print("ERROR RETIROS ADMIN:", e)
-        return jsonify({"error": str(e), "lista": []})
-    
+            c.execute(q(f"SELECT r.id, u.email, r.monto, r.banco_info, r.estado, r.fecha FROM retiros r LEFT JOIN usuarios u ON u.id=r.{col} ORDER BY r.id DESC"))
+            rows=c.fetchall()
+            print(f"RETIROS con {col}: {len(rows)}")
+            break
+        except Exception as e:
+            print(f"Fallo con {col}: {e}")
+            continue
+    con.close()
+    return jsonify([{"id":r[0],"user":r[1],"email":r[1],"monto":float(r[2] or 0),"banco":r[3],"estado":r[4],"fecha":str(r[5])[:19] if r[5] else ""} for r in rows])
 @app.route('/api/admin/retiros/aprobar', methods=['POST'])
 def api_aprobar_retiro():
     if not session.get('admin'): return jsonify({"ok":False})
