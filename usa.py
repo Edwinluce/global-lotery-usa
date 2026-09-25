@@ -24,6 +24,25 @@ def db():
     else:
         return sqlite3.connect('animalitos.db', check_same_thread=False)
 
+def crear_tablas_si_no_existen():
+    try:
+        con=db(); c=con.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS historial_resultados (
+                id SERIAL PRIMARY KEY,
+                sorteo_id INT,
+                animal_id INT,
+                animal_nombre TEXT,
+                fecha TIMESTAMP DEFAULT NOW()
+            );
+        """)
+        con.commit(); con.close()
+        print("Tabla historial_resultados OK")
+    except Exception as e:
+        print("Error creando tabla historial:", e)
+
+crear_tablas_si_no_existen()
+
 def q(query):
     return query.replace('?', '%s') if is_postgres() else query
 
