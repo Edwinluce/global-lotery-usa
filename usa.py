@@ -303,16 +303,35 @@ def api_admin_login():
 
 @app.route('/api/admin/retiros')
 def api_admin_retiros():
-    if not session.get('admin'): return jsonify([])
-    con=db(); c=con.cursor()
-    c.execute("""
-      SELECT r.id, u.username, u.email, r.monto, r.estado, r.fecha
-      FROM retiros r JOIN usuarios u ON r.usuario_id = u.id
-      ORDER BY r.id DESC
-    """)
-    rows=c.fetchall(); con.close()
-    return jsonify([{"id":r[0], "user":r[1], "email":r[2], "monto":r[3], "estado":r[4], "fecha":str(r[5])[:19]} for r in rows])
+    if not session.get('admin'):
+        return jsonify([])
+    try:
+        con=db(); c=con.cursor()
+        # Intenta con usuario_id (nuevo) y con user_id (viejo) para que siempre funcione
+        try:
+            c.execute(q("SELECT r.id, u.email, r.monto, r.banco_info, r.estado, r.fecha FROM retiros r LEFT JOIN usuarios u ON u.id=r.usuario_id ORDER BY r.id DESC"))
+        except:
+            c.execute(q("SELECT r.id, u.email, r.monto, r.banco_info, r.estado, r.fecha FROM retiros r LEFT JOIN usuarios u ON u.id=r.user_id ORDER BY r.id DESC"))
 
+        rows=c.fetchall()
+        print(f"RETIROS ENCONTRADOS: {len(rows)}") # para ver en logs de Render
+        con.close()
+        data = []
+        for r in rows:
+            data.append({
+                "id": r[0],
+                "user": r[1] or "sin email",
+                "email": r[1] or "sin email",
+                "monto": float(r[2] or 0),
+                "banco": r[3],
+                "estado": r[4],
+                "fecha": str(r[5])[:19] if r[5] else ""
+            })
+        return jsonify(data)
+    except Exception as e:
+        print("ERROR RETIROS ADMIN:", e)
+        return jsonify({"error": str(e), "lista": []})
+    
 @app.route('/api/admin/retiros/aprobar', methods=['POST'])
 def api_aprobar_retiro():
     if not session.get('admin'): return jsonify({"ok":False})
