@@ -318,7 +318,7 @@ document.querySelectorAll('#montosRetiroBtn button').forEach(b=>{
 document.getElementById('montoRetiroCustom').oninput=(e)=>{ let v=parseInt(e.target.value); if(v>0){ montoRetiro=v; document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active')); document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - $ '+montoRetiro; } };
 document.getElementById('btnEnviarRetiro').onclick=async()=>{
   let banco=document.getElementById('bancoRetiro').value.trim();
-  if(!banco) return alert('Put your Zelle'); if(montoRetiro>saldoActual) return alert('Insufficient balance'); if(montoRetiro<10) return alert('Min $10');
+  if(!banco) return alert('Put your Zelle'); if(montoRetiro>saldoActual) return alert('Insufficient balance'); if(montoRetiro<15) return alert('Min $15');
   document.getElementById('btnEnviarRetiro').innerText='⏳ Sending...';
   let res=await fetch('/api/solicitar-retiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto:montoRetiro,banco_info:banco})});
   let j=await res.json();
