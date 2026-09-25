@@ -230,6 +230,17 @@ def recarga_bcp():
     con.commit(); con.close()
     return jsonify({"ok":True,"msg":f"Voucher S/{monto} enviado"})
 
+def _get_col_retiros():
+    con=db(); c=con.cursor()
+    try:
+        c.execute("SELECT column_name FROM information_schema.columns WHERE table_name='retiros' AND column_name IN ('user_id','usuario_id')")
+        r=c.fetchone()
+        col = r[0] if r else 'user_id'
+    except:
+        col='usuario_id'
+    con.close()
+    return col
+
 @app.route("/api/solicitar-retiro", methods=["POST"])
 def solicitar_retiro():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
@@ -240,27 +251,25 @@ def solicitar_retiro():
     if not u or u[0] < monto:
         con.close()
         return jsonify({"ok":False,"msg":f"Saldo insuficiente S/ {u[0] if u else 0}"})
+    col = _get_col_retiros()
+    c.execute(q(f"INSERT INTO retiros ({col}, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
+    con.commit(); con.close()
+    return jsonify({"ok":True, "msg": f"Guardado con {col}"})
 
-    ok=False
-    for col in ['user_id', 'usuario_id']: # probamos primero el viejo que es el que tienes en Render
-        try:
-            con.rollback() # limpia el error anterior de postgres
-            c.execute(q(f"INSERT INTO retiros ({col}, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
-            con.commit()
-            ok=True
-            print(f"Retiro guardado con {col}")
-            break
-        except Exception as e:
-            print(f"Fallo con {col}: {e}")
-            con.rollback()
-            continue
-
+@app.route('/api/admin/retiros')
+def api_admin_retiros():
+    if not session.get('admin'): return jsonify([])
+    con=db(); c=con.cursor()
+    col = _get_col_retiros()
+    try:
+        c.execute(q(f"SELECT r.id, u.email, r.monto, r.banco_info, r.estado, r.fecha FROM retiros r LEFT JOIN usuarios u ON u.id=r.{col} ORDER BY r.id DESC"))
+        rows=c.fetchall()
+    except Exception as e:
+        print("ERROR RETIROS:", e)
+        rows=[]
     con.close()
-    if ok:
-        return jsonify({"ok":True, "msg": "Solicitud enviada"})
-    else:
-        return jsonify({"ok":False,"msg":"Error BD, contacta admin"})
-    
+    return jsonify([{"id":r[0],"user":r[1] or "sin email","email":r[1] or "sin email","monto":float(r[2] or 0),"banco":r[3],"estado":r[4],"fecha":str(r[5])[:19] if r[5] else ""} for r in rows])
+
 @app.route('/api/saldo')
 def api_saldo():
     if 'user' not in session: return jsonify({"saldo":0})
