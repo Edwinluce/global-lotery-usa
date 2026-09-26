@@ -8,6 +8,10 @@ import hashlib
 
 app=Flask(__name__)
 app.secret_key=os.environ.get('SECRET_KEY','globallotery-secreto-2025')
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = False
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 MI_CUENTA_BCP="191-12345678-0-12 - Yape: 999888777"
 DATABASE_URL=os.environ.get('DATABASE_URL')
 
@@ -243,7 +247,8 @@ def apostar_multiple():
 def api_login():
     d=request.json; email=d.get('email','').strip().lower(); password=d.get('password','')
     con=db(); c=con.cursor(); c.execute(q("SELECT id, password FROM usuarios WHERE email=?"), (email,)); row=c.fetchone(); con.close()
-    if row and check_pass(password, row[1]): session['user']=row[0]; return jsonify({"ok":True})
+    if row and check_pass(password, row[1]): session.permanent = True 
+    session['user']=row[0]; return jsonify({"ok":True})
     return jsonify({"ok":False,"msg":"Credenciales incorrectas"})
 
 @app.route('/api/register', methods=['POST'])
@@ -254,7 +259,8 @@ def api_register():
     try:
         uid=str(uuid.uuid4())
         c.execute(q("INSERT INTO usuarios (id,email,password,telefono,saldo) VALUES (?,?,?,?,0)"), (uid, email, hash_pass(password), telefono))
-        con.commit(); session['user']=uid
+        con.commit();session.permanent = True
+        session['user']=uid
         con.close()
         return jsonify({"ok":True})
     except Exception as e:
