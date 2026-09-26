@@ -443,7 +443,7 @@ def apostar_multiple():
             c.execute(q("SELECT nombre FROM animales WHERE id=?"),(animal_id,))
             animal=c.fetchone()
             if not animal: raise ValueError("Animal inválido")
-            nombres.append(f"- {animal[0]}: S/{monto}")
+            nombres.append(f"- {animal[0]}: ${monto}")
             c.execute(q("INSERT INTO apuestas (id,sorteo_id,usuario_id,animal_id,monto,fecha) VALUES (?,?,?,?,?,?)"),
                       (str(uuid.uuid4()),sid,uid,animal_id,monto,datetime.now().isoformat()))
 
@@ -454,7 +454,7 @@ def apostar_multiple():
             u[1],f"Confirmación de tu apuesta - Sorteo #{sid}",
             f"Hola,\n\nTu apuesta fue registrada correctamente.\n\n"
             f"Animales elegidos:\n" + "\n".join(nombres) +
-            f"\n\nTotal apostado: S/{total}\n\n"
+            f"\n\nTotal apostado: ${total}\n\n"
             "Cuando termine el sorteo recibirás un correo con el animal ganador.\n\nGloballotery"
         )
         return jsonify({"ok":True,"msg":"Apuesta registrada y correo enviado"})
@@ -530,7 +530,7 @@ def solicitar_retiro():
         registrar_movimiento(c, session['user'], 'RETIRO_RESERVADO', -monto, f'retiro:{retiro_id or "pendiente"}', 'Saldo reservado para retiro')
         con.commit(); con.close()
         enviar_correo_async(u[1],"Solicitud de retiro recibida - Globallotery",
-                            f"Hola,\n\nRecibimos tu solicitud de retiro por S/{monto}.\n"
+                            f"Hola,\n\nRecibimos tu solicitud de retiro por $/{monto}.\n"
                             f"Cuenta/número: {yape}\n\nPendiente de aprobación por el administrador.\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Solicitud enviada. El saldo quedó reservado."})
     except Exception as e:
@@ -555,7 +555,7 @@ def aprobar_retiro():
         registrar_movimiento(c, r[0], 'RETIRO_APROBADO', 0, f'retiro:{rid}', f'Retiro aprobado por S/{r[1]}')
         con.commit(); con.close()
         enviar_correo_async(r[3],"Retiro aprobado - Globallotery",
-                            f"Hola,\n\nTu retiro de S/{r[1]} fue APROBADO.\n"
+                            f"Hola,\n\nTu retiro de ${r[1]} fue APROBADO.\n"
                             "El pago puede ser procesado al medio registrado.\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Retiro aprobado correctamente"})
     except Exception as e:
@@ -582,7 +582,7 @@ def rechazar_retiro():
         con.commit(); con.close()
         enviar_correo_async(r[3],"Retiro rechazado - Globallotery",
                             f"Hola,\n\nTu retiro de S/{r[1]} fue rechazado.\n"
-                            f"El monto S/{r[1]} fue devuelto a tu saldo.\n\nGloballotery")
+                            f"El monto ${r[1]} fue devuelto a tu saldo.\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Rechazado y saldo devuelto"})
     except Exception as e:
         if con:
@@ -698,9 +698,9 @@ def aprobar_recarga():
         c.execute(q("UPDATE recargas_bcp SET estado='aprobado' WHERE id=?"),(rid,))
         con.commit(); con.close()
         enviar_correo_async(row[3],"Recarga aprobada - Globallotery",
-                            f"Hola,\n\nTu recarga de S/{row[1]} fue aprobada correctamente.\n"
+                            f"Hola,\n\nTu recarga de ${row[1]} fue aprobada correctamente.\n"
                             "El monto ya fue acreditado a tu saldo.\n\nGloballotery")
-        return jsonify({"ok":True,"msg":f"Aprobado S/{row[1]}"})
+        return jsonify({"ok":True,"msg":f"Aprobado ${row[1]}"})
     except Exception as e:
         if con:
             try: con.rollback(); con.close()
@@ -720,7 +720,7 @@ def rechazar_recarga():
         if row[0]!='pendiente': con.close(); return jsonify({"ok":False,"msg":"La recarga ya fue procesada"}),400
         c.execute(q("UPDATE recargas_bcp SET estado='rechazado' WHERE id=?"),(rid,))
         con.commit(); con.close()
-        enviar_correo_async(row[2], 'Recarga rechazada - Globallotery', f'Hola,\n\nTu recarga de S/{row[1]} fue rechazada.\n\nGloballotery')
+        enviar_correo_async(row[2], 'Recarga rechazada - Globallotery', f'Hola,\n\nTu recarga de ${row[1]} fue rechazada.\n\nGloballotery')
         return jsonify({"ok":True,"msg":"Recarga rechazada"})
     except Exception as e:
         if con:
