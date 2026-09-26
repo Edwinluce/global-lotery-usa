@@ -1,10 +1,10 @@
 from flask import Flask, render_template, request, jsonify, session, redirect
-import sqlite3, hashlib, random, secrets, uuid, os, smtplib
+import sqlite3, hashlib, random, secrets, uuid, os, urllib.request, urllib.error, json
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-from email.message import EmailMessage
+
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
@@ -19,40 +19,75 @@ MI_LINK_IZIPAY = "https://izipayya.page.link/TU_LINK_AQUI"
 MI_NOMBRE_BCP = "Globallotery"
 
 # ========================= CORREO =========================
-SMTP_HOST = os.environ.get("SMTP_HOST", "")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER", "")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")
-SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER)
-SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") != "0"
+# En Render Free usamos Brevo mediante HTTPS.
+# NO usamos SMTP porque Render Free bloquea los puertos SMTP 25/465/587.
+
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+BREVO_FROM_EMAIL = os.environ.get("BREVO_FROM_EMAIL", "")
+BREVO_FROM_NAME = os.environ.get("BREVO_FROM_NAME", "Globallotery")
+
 
 def enviar_correo(destinatario, asunto, cuerpo):
-    if not destinatario or not SMTP_HOST or not SMTP_USER or not SMTP_PASS:
-        print("CORREO NO ENVIADO: configura SMTP_HOST, SMTP_USER y SMTP_PASS")
+    if not destinatario or not BREVO_API_KEY or not BREVO_FROM_EMAIL:
+        print("CORREO NO ENVIADO: configura BREVO_API_KEY y BREVO_FROM_EMAIL")
         return False
+
     try:
-        msg = EmailMessage()
-        msg["Subject"] = asunto
-        msg["From"] = SMTP_FROM or SMTP_USER
-        msg["To"] = destinatario
-        msg.set_content(cuerpo)
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
-            if SMTP_USE_TLS:
-                server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
-        return True
+        datos = {
+            "sender": {
+                "name": BREVO_FROM_NAME,
+                "email": BREVO_FROM_EMAIL
+            },
+            "to": [
+                {
+                    "email": destinatario
+                }
+            ],
+            "subject": asunto,
+            "textContent": cuerpo
+        }
+
+        payload = json.dumps(datos).encode("utf-8")
+
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            method="POST",
+            headers={
+                "accept": "application/json",
+                "api-key": BREVO_API_KEY,
+                "content-type": "application/json"
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=20) as response:
+            resultado = response.read().decode("utf-8")
+            print("CORREO ENVIADO OK:", resultado)
+            return True
+
+    except urllib.error.HTTPError as e:
+        try:
+            detalle = e.read().decode("utf-8")
+        except Exception:
+            detalle = str(e)
+
+        print("ERROR BREVO:", e.code, detalle)
+        return False
+
     except Exception as e:
         print("ERROR ENVIANDO CORREO:", e)
         return False
 
+
 def enviar_correo_async(destinatario, asunto, cuerpo):
     import threading
-    threading.Thread(target=enviar_correo,
-                     args=(destinatario, asunto, cuerpo),
-                     daemon=True).start()
 
-
+    threading.Thread(
+        target=enviar_correo,
+        args=(destinatario, asunto, cuerpo),
+        daemon=True
+    ).start()
+    
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def is_postgres():
