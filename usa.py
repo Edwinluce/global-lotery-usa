@@ -257,27 +257,36 @@ def api_logout():
 
 @app.route('/api/recarga-bcp', methods=['POST'])
 def recarga_bcp():
-    if 'user' not in session:
-        return jsonify({"ok":False,"msg":"No logueado"})
-    monto=request.form.get('monto')
-    oper=request.form.get('operacion')
-    titular=request.form.get('titular','')
-    fecha_op=request.form.get('fecha_op','')
-    file=request.files.get('voucher')
-    path=""
+    uid = session.get('user')
+    # FALLBACK por si la cookie falla en el celular
+    if not uid:
+        email_fb = request.form.get('email_fallback','').strip().lower()
+        if email_fb:
+            con = db(); cur = con.cursor()
+            cur.execute(q("SELECT id FROM usuarios WHERE email=?"), (email_fb,))
+            r = cur.fetchone()
+            con.close()
+            if r:
+                uid = r[0]
+                session['user'] = uid
+    if not uid:
+        return jsonify({"ok":False,"msg":"No logueado - cierra y vuelve a loguearte"})
+    monto=request.form.get('monto'); oper=request.form.get('operacion')
+    titular=request.form.get('titular',''); fecha_op=request.form.get('fecha_op','')
+    file=request.files.get('voucher'); path=""
     if file:
+        from werkzeug.utils import secure_filename
+        import uuid, os
         fname=secure_filename(file.filename)
         os.makedirs('static/vouchers', exist_ok=True)
         path=f"static/vouchers/{uuid.uuid4()}_{fname}"
         file.save(path)
-    try:
-        monto_int = int(float(monto))
-    except:
-        monto_int = 0
+    try: monto_int=int(float(monto))
+    except: monto_int=0
     con=db(); c=con.cursor()
-    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,numero_operacion,fecha_operacion,titular,voucher_path,estado,fecha) VALUES (?,?,?,?,?,?,?,?)"), (session['user'], monto_int, oper, fecha_op, titular, path, 'pendiente', datetime.now().isoformat()))
+    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,numero_operacion,fecha_operacion,titular,voucher_path,estado,fecha) VALUES (?,?,?,?,?,?,?,?)"), (uid, monto_int, oper, fecha_op, titular, path, 'pendiente', datetime.now().isoformat()))
     con.commit(); con.close()
-    return jsonify({"ok":True,"msg":"Recarga enviada"})
+    return jsonify({"ok":True,"msg":"Recarga enviada, esperando aprobación"})
 
 @app.route("/api/solicitar-retiro", methods=["POST"])
 def solicitar_retiro():
