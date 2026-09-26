@@ -11,7 +11,7 @@ app.secret_key=os.environ.get('SECRET_KEY','globallotery-secreto-2025')
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 MI_CUENTA_BCP="191-12345678-0-12 - Yape: 999888777"
 DATABASE_URL=os.environ.get('DATABASE_URL')
 EMAIL_USER = os.environ.get('EMAIL_USER')
