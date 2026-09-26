@@ -82,7 +82,7 @@ async function verMisApuestas(){
   document.getElementById('panelHistorial').style.display='block';
   document.getElementById('tituloHistorial').innerText='🎯 Mis últimas apuestas';
   document.getElementById('contenidoHistorial').innerText='Cargando...';
-  let r=await fetch('/api/mis-apuestas'); let data=await r.json();
+  let r=await fetch('/api/mis-apuestas', {credentials:'include'}); let data=await r.json();
   if(data.length==0){document.getElementById('contenidoHistorial').innerHTML='Aún no has apostado'; return;}
   let html='<table style="width:100%;border-collapse:collapse"><tr><th>Sorteo</th><th>Mi Animal</th><th>Ganó</th><th>Monto</th></tr>';
   data.forEach(x=>{let color = x.mi_animal==x.ganador?'#1ee66d':'#fff'; html+=`<tr><td>#${x.sorteo}</td><td>${x.mi_animal}</td><td style="color:${color};font-weight:bold">${x.ganador}</td><td>S/${x.monto}</td></tr>`});
@@ -93,7 +93,7 @@ async function verHistorial(){
   document.getElementById('panelHistorial').style.display='block';
   document.getElementById('tituloHistorial').innerText='📜 Últimos animales que salieron';
   document.getElementById('contenidoHistorial').innerText='Cargando...';
-  let r=await fetch('/api/historial-global'); let data=await r.json();
+  let r=await fetch('/api/historial-global', {credentials:'include'}); let data=await r.json();
   let html=''; data.forEach(x=>{html+=`#${x.id} - ${x.fecha} - <b>🦁 ${x.ganador}</b> (S/ ${x.recaudado})<br>`});
   document.getElementById('contenidoHistorial').innerHTML=html || 'Aún no hay sorteos finalizados';
 }
@@ -140,9 +140,7 @@ async function verHistorial(){
 <div id="ganasteTexto" style="margin-top:12px;font-size:14px;line-height:1.4"></div>
 </div>
 <button class="btn-volver" onclick="volverSala()">🔄 Back to room</button>
-</div>
-
-<div id="modalRecarga" class="modal-recarga">
+</div><div id="modalRecarga" class="modal-recarga">
 <div class="box-recarga">
 <h3>💳 Add Balance</h3>
 <small class="sub">Current balance: <b id="saldoModal" style="color:#ffcc4d">$ 0.00</b></small>
@@ -164,8 +162,7 @@ Zelle: <b style="color:#ffcc4d;font-size:14px">weinderlyn@gmail.com</b><br>
 Name: <b>weinder gil</b><br>
 Bank: <b>Chase / BOFA</b>
 </div>
-<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="navigator.clipboard.writeText('weinderlyn@gmail.com');alert('✅ Zelle copied')">📋 Copy Zelle</button>
-</div>
+<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="navigator.clipboard.writeText('weinderlyn@gmail.com');alert('✅ Zelle copied')">📋 Copy Zelle</button></div>
 <div class="label-rec">📤 UPLOAD RECEIPT</div>
 <input type="file" id="voucherFile" accept="image/*" class="input-card">
 <input id="operacion" class="input-card" placeholder="Zelle confirmation # (ex: 034521) *">
@@ -220,7 +217,7 @@ document.getElementById('btn-limpiar').onclick=()=>{ apuestas={}; document.query
 document.getElementById('btn-confirmar').onclick=()=>{
  let total=calc(); if(total==0) return alert('Pick an animal'); if(saldoActual<total){ alert('Insufficient balance'); abrirRecarga(); return; }
  misApuestasGuardadas={...apuestas};
- fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apuestas})}).then(r=>r.json()).then(d=>{
+ fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apuestas}),credentials:'include'}).then(r=>r.json()).then(d=>{
   if(d.ok){ saldoActual-=total; document.getElementById('saldo').innerText='$ '+saldoActual.toFixed(2); mostrarSalaConteo(); }
   else alert(d.msg);
  });
@@ -234,7 +231,7 @@ function mostrarSalaConteo(){
 }
 function mostrarResultado(){
  document.getElementById('modalSala').style.display='none';
- fetch('/api/ultimo-resultado').then(r=>r.json()).then(d=>{
+ fetch('/api/ultimo-resultado',{credentials:'include'}).then(r=>r.json()).then(d=>{
   let idGanador = d.ganador!==null? parseInt(d.ganador) : (Math.floor(Math.random()*25)+1);
   let g=animales.find(x=>x[0]==idGanador) || animales[6];
   document.getElementById('ganadorEmoji').innerText=g[2];
@@ -242,7 +239,7 @@ function mostrarResultado(){
   document.getElementById('ganadorNum').innerText='N° '+String(g[0]).padStart(2,'0');
   if(misApuestasGuardadas[g[0]]){
    document.getElementById('ganasteTexto').innerHTML=`🎉 <b style="color:#22c55e">YOU WON!</b><br>You bet $${misApuestasGuardadas[g[0]]} on ${g[1]}`;
-   fetch('/api/saldo').then(r=>r.json()).then(s=>{ saldoActual=s.saldo; document.getElementById('saldo').innerText='$ '+saldoActual.toFixed(2); });
+   fetch('/api/saldo',{credentials:'include'}).then(r=>r.json()).then(s=>{ saldoActual=s.saldo; document.getElementById('saldo').innerText='$ '+saldoActual.toFixed(2); });
   } else {
    document.getElementById('ganasteTexto').innerHTML=`😢 Not this time<br>Winner <b style="color:#ffcc4d">${g[1]}</b>`;
   }
@@ -260,7 +257,7 @@ function volverSala(){
  cargarHistorial();
 }
 function cargarHistorial(){
- fetch('/api/historial-sorteos').then(r=>r.json()).then(h=>{
+ fetch('/api/historial-sorteos',{credentials:'include'}).then(r=>r.json()).then(h=>{
    let cont=document.getElementById('historialAnimales'); cont.innerHTML='';
    if(!h || h.length==0){ cont.innerHTML='<small style="color:#555">No draws yet</small>'; return; }
    h.slice(0,20).forEach(row=>{
@@ -300,7 +297,7 @@ document.getElementById('btnPagar').onclick=()=>{
  let fd=new FormData(); fd.append('monto',montoRecarga); fd.append('operacion',op); fd.append('nombre',document.getElementById('cardNombre').value);
  let file=document.getElementById('voucherFile').files[0]; if(file) fd.append('voucher',file);
  document.getElementById('btnPagar').innerText='⏳ Sending...';
- fetch('/api/recarga-bcp',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{ alert(d.msg); if(d.ok) cerrarRecarga(); document.getElementById('btnPagar').innerText='✅ Send voucher - $ '+montoRecarga; });
+ fetch('/api/recarga-bcp',{method:'POST',body:fd,credentials:'include'}).then(r=>r.json()).then(d=>{ alert(d.msg); if(d.ok) cerrarRecarga(); document.getElementById('btnPagar').innerText='✅ Send voucher - $ '+montoRecarga; });
 };
 let montoRetiro=50; const modalRetiro=document.getElementById('modalRetiro');
 function abrirRetiro(){ document.getElementById('saldoModalRetiro').innerText='$ '+saldoActual.toFixed(2); modalRetiro.style.display='flex'; cargarMisRetiros(); }
@@ -320,13 +317,13 @@ document.getElementById('btnEnviarRetiro').onclick=async()=>{
   let banco=document.getElementById('bancoRetiro').value.trim();
   if(!banco) return alert('Put your Zelle'); if(montoRetiro>saldoActual) return alert('Insufficient balance'); if(montoRetiro<15) return alert('Min $15');
   document.getElementById('btnEnviarRetiro').innerText='⏳ Sending...';
-  let res=await fetch('/api/solicitar-retiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto:montoRetiro,banco_info:banco})});
+  let res=await fetch('/api/solicitar-retiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto:montoRetiro,banco_info:banco}),credentials:'include'});
   let j=await res.json();
   if(j.ok){ alert('✅ Request sent'); cerrarRetiro(); cargarMisRetiros(); }
   else { alert(j.msg); document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - $ '+montoRetiro; }
 };
 async function cargarMisRetiros(){
-  let r=await fetch('/api/mis-retiros'); let j=await r.json();
+  let r=await fetch('/api/mis-retiros',{credentials:'include'}); let j=await r.json();
   if(j.length==0){ document.getElementById('listaMisRetiros').innerHTML=''; document.getElementById('misRetirosTxt').innerText=''; return; }
   document.getElementById('listaMisRetiros').innerHTML='<b>My withdrawals:</b><br>'+j.map(x=>`${x.fecha} $${x.monto} - ${x.estado}<br>`).join('');
   let pend=j.filter(x=>x.estado=='pendiente'); if(pend.length>0) document.getElementById('misRetirosTxt').innerText='⏳ Pending withdrawal $'+pend[0].monto;
@@ -334,7 +331,7 @@ async function cargarMisRetiros(){
 cargarMisRetiros();
 const partidaActual = cierre.getTime();
 const ultimaPartidaGuardada = localStorage.getItem('ultima_partida');
-fetch('/api/mis-apuestas-actuales').then(r=>r.json()).then(d=>{
+fetch('/api/mis-apuestas-actuales',{credentials:'include'}).then(r=>r.json()).then(d=>{
  if(d.apuestas && Object.keys(d.apuestas).length>0){
    let diffRestante = cierre - new Date();
    if(ultimaPartidaGuardada && parseInt(ultimaPartidaGuardada)!== partidaActual){
@@ -357,10 +354,9 @@ fetch('/api/mis-apuestas-actuales').then(r=>r.json()).then(d=>{
  }
 });
 </script>
-<!-- BOTON WHATSAPP ICONO -->
 <a href="https://wa.me/56935491789?text=Hola%20Admin%2C%20soy%20de%20Loteria%20USA%20y%20necesito%20ayuda" target="_blank"
 style="position:fixed; bottom:20px; left:20px; background:#25D366; width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:9999; text-decoration:none;">
-  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M19.05 4.94A9.91 9.91 0 0 0 12.04 2C6.58 2 2.15 6.43 2.15 11.89c0 1.74.45 3.44 1.32 4.94L2 22l5.33-1.4a9.87 9.87 0 0 0 4.71 1.2h.01c5.46 0 9.9-4.43 9.9-9.89 0-2.64-1.03-5.13-2.9-7.97zM12.05 20.03a8.07 8.07 0 0 1-4.11-1.13l-.29-.17-3.16.83.84-3.08-.19-.32a8.09 8.09 0 0 1-1.25-4.27c0-4.48 3.65-8.13 8.15-8.13 2.17 0 4.21.85 5.75 2.39a8.07 8.07 0 0 1 2.38 5.74c0 4.48-3.65 8.14-8.12 8.14zm4.47-6.09c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12s-.62.78-.76.94-.28.18-.52.06c-.24-.12-1.01-.37-1.92-1.18-.71-.63-1.19-1.41-1.33-1.65-.14-.24-.01-.37.11-.49.1-.1.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.41-.54-.42h-.46c-.16 0-.42.06-.64.3s-.84.82-.84 2 .86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.57.18 1.09.16 1.5.1.46-.07 1.43-.58 1.63-1.15.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28z"/></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M19.05 4.94A9.91 9.91 0 0 0 12.04 2C6.58 2 2.15 6.43 2.15 11.89c0 1.74.45 3.44 1.32 4.94L2 22l5.33-1.4a9.87 9.87 0 0 0 4.71 1.2h.01c5.46 0 9.9-4.43 9.9-9.89 0-2.64-1.03-5.13-2.9-7.97zM12.05 20.03a8.07 8.07 0 0 1-4.11-1.13l-.29-.17-3.16.83.84-3.08-.19-.32a8.09 8.09 0 0 1-1.25-4.27c0-4.48 3.65-8.13 8.15-8.13 2.17 0 4.21.85 5.75 2.39a8.07 8.07 0 0 1 2.38 5.74c0 4.48-3.65 8.14-8.12 8.14zm4.47-6.09c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12s-.62.78-.76.94-.28.18-.52.06c-.24-.12-1.01-.37-1.92-1.18-.71-.63-1.19-1.41-1.33-1.65-.14-.24-.01-.37.11-.49.1-.1.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.41-.54-.42h-.46c-.16 0-.42.06-.64.3s-.84.82-.84 2.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.57.18 1.09.16 1.5.1.46-.07 1.43-.58 1.63-1.15.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28z"/></svg>
 </a>
 </body>
 </html>
