@@ -57,7 +57,7 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 .err{color:#ff6b6b;font-size:11px;margin-top:6px;display:none}
 .terms-check{display:flex;gap:9px;align-items:flex-start;margin:10px 0;color:#b7d9c8;font-size:11px;line-height:1.45}
 .terms-check input{width:16px;height:16px;accent-color:#22ff88;margin-top:1px;flex:none}
-.terms-check a{color:#22ff88;text-decoration:underline;cursor:pointer}
+.terms-check a{color:#22ff88;text-decoration:underline;cursor:pointer;font-weight:800}
 .btn-blue:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .terms-modal .modal-box{max-width:520px;max-height:88vh;overflow:auto}
 .terms-text{color:#cfe8dc;font-size:11px;line-height:1.55;margin-top:10px}
@@ -123,12 +123,12 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 <input id="reg-pass2" type="password" placeholder="Verificar contraseña *">
 
 <label class="terms-check">
-<input id="reg-18" type="checkbox">
+<input id="reg-18" type="checkbox" onchange="actualizarBotonRegistro()">
 <span>Confirmo que soy <b>mayor de 18 años</b>.</span>
 </label>
 <label class="terms-check">
 <input id="reg-terms" type="checkbox" onchange="actualizarBotonRegistro()">
-<span>He leído y acepto los <a onclick="abrirTerminos()">Términos y Condiciones</a> y la Política de Privacidad.</span>
+<span>He leído y acepto los <a class="terms-link" onclick="abrirTerminos()">📄 Ver Términos y Condiciones</a> y la Política de Privacidad.</span>
 </label>
 
 <p id="reg-err" class="err"></p>
