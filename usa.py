@@ -1,199 +1,211 @@
-from flask import Flask, render_template, request, jsonify, session, redirect
-import sqlite3, hashlib, random, secrets, uuid, os
+import os, psycopg2, smtplib, threading, uuid
+from flask import Flask, render_template, request, redirect, session, jsonify, url_for
 from datetime import datetime, timedelta
-from apscheduler.schedulers.background import BackgroundScheduler
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from werkzeug.utils import secure_filename
+import hashlib
 
-app = Flask(__name__)
-app.secret_key = 'global-lottery-2025-segura'
+app=Flask(__name__)
+app.secret_key=os.environ.get('SECRET_KEY','globallotery-secreto-2025')
+MI_CUENTA_BCP="191-12345678-0-12 - Yape: 999888777"
+DATABASE_URL=os.environ.get('DATABASE_URL')
 
-MI_CUENTA_BCP = "19106864219053"
-MI_CCI_BCP = "00219110686421905358"
-MI_LINK_IZIPAY = "https://izipayya.page.link/TU_LINK_AQUI"
-MI_NOMBRE_BCP = "Globallotery"
+# EMAIL CONFIG - Render Environment
+EMAIL_USER = os.environ.get('EMAIL_USER')
+EMAIL_PASS = os.environ.get('EMAIL_PASS')
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
-
-def is_postgres():
-    return DATABASE_URL is not None and DATABASE_URL!= ""
-
-def db():
-    if is_postgres():
-        import psycopg2
-        return psycopg2.connect(DATABASE_URL)
-    else:
-        return sqlite3.connect('animalitos.db', check_same_thread=False)
+def enviar_correo_async(destinatario, asunto, mensaje_html):
+    def enviar():
+        try:
+            if not EMAIL_USER or not EMAIL_PASS:
+                print("Email no configurado en Render")
+                return
+            msg = MIMEMultipart()
+            msg['From'] = f"Global Lotery <{EMAIL_USER}>"
+            msg['To'] = destinatario
+            msg['Subject'] = asunto
+            msg.attach(MIMEText(mensaje_html, 'html'))
+            server = smtplib.SMTP('smtp.gmail.com', 587)
+            server.starttls()
+            server.login(EMAIL_USER, EMAIL_PASS.replace(" ",""))
+            server.send_message(msg)
+            server.quit()
+            print(f"Correo enviado a {destinatario}")
+        except Exception as e:
+            print(f"Error enviando correo a {destinatario}: {e}")
+    threading.Thread(target=enviar, daemon=True).start()
 
 def q(query):
-    return query.replace('?', '%s') if is_postgres() else query
+    if DATABASE_URL and DATABASE_URL.startswith("postgres"):
+        return query.replace("?", "%s")
+    return query
 
-def hash_pass(p):
-    return hashlib.sha256(p.encode()).hexdigest()
+def db():
+    if DATABASE_URL:
+        return psycopg2.connect(DATABASE_URL, sslmode='require')
+    import sqlite3
+    return sqlite3.connect('local.db')
 
-def get_proximo_cierre_global():
-    ahora = datetime.now()
-    proximo = ahora.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    return proximo
+def hash_pass(p): return hashlib.sha256(p.encode()).hexdigest()
+def check_pass(p,h): return hash_pass(p)==h
 
 def _get_col_retiros():
     con=db(); c=con.cursor()
     try:
-        c.execute("SELECT column_name FROM information_schema.columns WHERE table_name='retiros' AND column_name IN ('user_id','usuario_id') LIMIT 1")
-        r=c.fetchone()
-        col = r[0] if r else 'user_id'
+        c.execute(q("SELECT column_name FROM information_schema.columns WHERE table_name='retiros'"))
+        cols=[r[0] for r in c.fetchall()]
+        con.close()
+        if 'usuario_id' in cols: return 'usuario_id'
+        if 'user_id' in cols: return 'user_id'
+        return 'usuario_id'
     except:
-        col='usuario_id'
-        try:
-            c.execute("PRAGMA table_info(retiros)")
-            cols=[x[1] for x in c.fetchall()]
-            if 'user_id' in cols: col='user_id'
-        except: pass
-    con.close()
-    return col
-
-def crear_tablas_si_no_existen():
-    try:
-        con=db(); c=con.cursor()
-        c.execute("CREATE TABLE IF NOT EXISTS historial_resultados (id SERIAL PRIMARY KEY, sorteo_id INT, animal_id INT, animal_nombre TEXT, fecha TIMESTAMP DEFAULT NOW())")
-        con.commit(); con.close()
-    except Exception as e:
-        print("Error creando tabla historial:", e)
-crear_tablas_si_no_existen()
-
-def init_db():
-    con = db(); c = con.cursor()
-    if is_postgres():
-        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo FLOAT DEFAULT 0, fecha_registro TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS animales (id INTEGER PRIMARY KEY, nombre TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS sorteos (id SERIAL PRIMARY KEY, fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT, seed TEXT, hash_verificacion TEXT, recaudacion FLOAT, fondo_premios FLOAT, margen_plataforma FLOAT, jackpot FLOAT, tiempo_min INTEGER DEFAULT 60)")
-        c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto FLOAT, fecha TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS retiros (id SERIAL PRIMARY KEY, user_id INTEGER, monto FLOAT, banco_info TEXT, estado TEXT, fecha TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id SERIAL PRIMARY KEY, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
-    else:
-        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo REAL DEFAULT 0, fecha_registro TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS animales (id INTEGER PRIMARY KEY, nombre TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS sorteos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT, seed TEXT, hash_verificacion TEXT, recaudacion REAL, fondo_premios REAL, margen_plataforma REAL, jackpot REAL, tiempo_min INTEGER DEFAULT 60)")
-        c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto REAL, fecha TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS retiros (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto REAL, banco_info TEXT, estado TEXT, fecha TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
-    c.execute("SELECT COUNT(*) FROM animales")
-    if c.fetchone()[0]==0:
-        noms=["Perro","Gato","Ratón","Conejo","Zorro","Tigre","León","Elefante","Mono","Gallina","Gallo","Cerdo","Vaca","Caballo","Alpaca","Vicuña","Cóndor","Oso","Puma","Gallito","Caimán","Serpiente","Rana","Delfin","Guacamayo"]
-        for i,n in enumerate(noms):
-            try: c.execute(q("INSERT INTO animales VALUES (?,?)"),(i+1,n))
-            except: pass
-    c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' LIMIT 1"))
-    if not c.fetchone():
-        proximo = get_proximo_cierre_global()
-        c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO', 60)"),(proximo.isoformat(),))
-    c.execute(q("INSERT INTO config (k,v) VALUES ('pausado','0') ON CONFLICT (k) DO NOTHING") if is_postgres() else "INSERT OR IGNORE INTO config (k,v) VALUES ('pausado','0')")
-    c.execute(q("INSERT INTO config (k,v) VALUES ('tiempo_min','60') ON CONFLICT (k) DO NOTHING") if is_postgres() else "INSERT OR IGNORE INTO config (k,v) VALUES ('tiempo_min','60')")
-    con.commit(); con.close()
-
-init_db()
+        con.close()
+        return 'usuario_id'
 
 def get_config():
-    try:
-        con=db(); c=con.cursor()
-        c.execute(q("SELECT v FROM config WHERE k='pausado'")); r=c.fetchone()
-        pausado = r[0]=='1' if r else False
-        c.execute(q("SELECT v FROM config WHERE k='tiempo_min'")); r=c.fetchone()
-        tiempo = int(r[0]) if r and str(r[0]).isdigit() else 60
-        con.close(); return pausado, tiempo
-    except: return False, 60
-
-def set_config(k,v):
     con=db(); c=con.cursor()
-    c.execute(q("INSERT INTO config (k,v) VALUES (?,?) ON CONFLICT (k) DO UPDATE SET v=EXCLUDED.v") if is_postgres() else "INSERT OR REPLACE INTO config (k,v) VALUES (?,?)",(k,str(v)))
+    try:
+        c.execute(q("SELECT clave, valor FROM configuracion"))
+        d=dict(c.fetchall())
+        pausado = d.get('pausado','0')=='1'
+        tiempo = int(d.get('tiempo_min','60'))
+    except:
+        pausado=False; tiempo=60
+    con.close()
+    return pausado, tiempo
+
+def set_config(clave, valor):
+    con=db(); c=con.cursor()
+    c.execute(q("INSERT INTO configuracion (clave, valor) VALUES (?,?) ON CONFLICT (clave) DO UPDATE SET valor=?") if DATABASE_URL else q("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?,?)"), (clave, valor, valor) if DATABASE_URL else (clave, valor))
     con.commit(); con.close()
 
+def get_proximo_cierre_global():
+    _, tiempo_min = get_config()
+    return datetime.now() + timedelta(minutes=tiempo_min)
+
 def sortear():
-    pausado,_ = get_config()
-    if pausado: return
-    con = db(); c = con.cursor()
-    c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' AND fecha_hora_cierre <=?"), (datetime.now().isoformat(),))
-    row = c.fetchone()
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+    s=c.fetchone()
+    if not s: con.close(); return
+    sid=s[0]
+    c.execute(q("SELECT fecha_hora_cierre FROM sorteos WHERE id=?"), (sid,))
+    row=c.fetchone()
     if not row: con.close(); return
-    sid=row[0]
-    c.execute(q("UPDATE sorteos SET estado='CERRADO' WHERE id=?"), (sid,)); con.commit()
-    c.execute(q("SELECT COUNT(*), COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=?"), (sid,))
-    tot, recaud = c.fetchone(); recaud=recaud or 0; fondo=int(recaud*0.75); margen=int(recaud*0.25)
-    if tot and tot>=1:
-        seed_raw=f"{sid}-{datetime.now().isoformat()}-{secrets.token_hex(16)}"; h=hashlib.sha256(seed_raw.encode()).hexdigest()
-        random.seed(h); ganador=random.randint(1,25)
-        c.execute(q("UPDATE sorteos SET animal_ganador=?, seed=?, hash_verificacion=?, recaudacion=?, fondo_premios=?, margen_plataforma=?, estado='RESULTADO_GENERADO' WHERE id=?"), (ganador, seed_raw, h, recaud, fondo, margen, sid))
-        c.execute(q("SELECT usuario_id, SUM(monto) FROM apuestas WHERE sorteo_id=? AND animal_id=? GROUP BY usuario_id"), (sid, ganador))
-        ganadores=c.fetchall()
-        if ganadores:
-            total_gan=sum([g[1] for g in ganadores]) or 1
-            for uid, apostado in ganadores:
-                premio=int(fondo*(apostado/total_gan)); c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"), (premio, uid))
-            c.execute(q("UPDATE sorteos SET estado='PAGADO' WHERE id=?"), (sid,))
-        else: c.execute(q("UPDATE sorteos SET jackpot=?, estado='FINALIZADO' WHERE id=?"), (fondo, sid))
-    else: c.execute(q("UPDATE sorteos SET recaudacion=?, fondo_premios=?, margen_plataforma=?, jackpot=?, estado='FINALIZADO' WHERE id=?"), (recaud,fondo,margen,fondo,sid))
-    con.commit(); proximo=get_proximo_cierre_global()
+    try:
+        cierre=datetime.fromisoformat(row[0])
+    except:
+        con.close(); return
+    if datetime.now() < cierre:
+        con.close(); return
+
+    c.execute(q("SELECT COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=?"), (sid,))
+    recaud=int(float(c.fetchone()[0] or 0))
+    if recaud==0:
+        proximo=get_proximo_cierre_global()
+        _, tiempo = get_config()
+        c.execute(q("UPDATE sorteos SET fecha_hora_cierre=?, tiempo_min=? WHERE id=?"), (proximo.isoformat(), tiempo, sid))
+        con.commit(); con.close()
+        return
+
+    import random
+    c.execute(q("SELECT id FROM animales"))
+    animales=[r[0] for r in c.fetchall()]
+    ganador=random.choice(animales) if animales else 1
+    margen=int(recaud*0.25)
+    fondo=int(recaud*0.75)
+    c.execute(q("UPDATE sorteos SET animal_ganador=?, recaudacion=?, margen_plataforma=?, fondo_premios=?, estado='FINALIZADO' WHERE id=?"), (ganador, recaud, margen, fondo, sid))
+
+    c.execute(q("SELECT nombre FROM animales WHERE id=?"), (ganador,))
+    rg=c.fetchone()
+    nombre_ganador = rg[0] if rg else f"Animal {ganador}"
+
+    c.execute(q("SELECT usuario_id, SUM(monto) FROM apuestas WHERE sorteo_id=? AND animal_id=? GROUP BY usuario_id"), (sid, ganador))
+    ganadores=c.fetchall()
+    c.execute(q("SELECT DISTINCT a.usuario_id, u.email FROM apuestas a JOIN usuarios u ON u.id=a.usuario_id WHERE a.sorteo_id=?"), (sid,))
+    todos=c.fetchall()
+
+    if ganadores:
+        total_gan=sum([g[1] for g in ganadores]) or 1
+        for uid, apostado in ganadores:
+            premio=int(fondo*(apostado/total_gan))
+            c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"), (premio, uid))
+            c.execute(q("SELECT email FROM usuarios WHERE id=?"), (uid,))
+            em=c.fetchone()
+            if em and em[0]:
+                html=f"""<div style="font-family:Arial;background:#111;color:#fff;padding:20px;border-radius:15px"><h1 style="color:#1ee66d">🎉 ¡GANASTE! 🎉</h1><h2>Salió: 🦁 {nombre_ganador}</h2><p>Apostaste S/ {apostado} a {nombre_ganador}</p><p style="font-size:24px;background:#1ee66d;color:#000;padding:15px;border-radius:10px;text-align:center"><b>Premio: S/ {premio}</b></p><p>Tu saldo ya fue acreditado.</p></div>"""
+                enviar_correo_async(em[0], f"🎉 GANASTE S/ {premio} con {nombre_ganador}! Sorteo #{sid}", html)
+        ids_g=[g[0] for g in ganadores]
+        for uid,email in todos:
+            if uid not in ids_g and email:
+                html=f"""<div style="font-family:Arial;background:#111;color:#fff;padding:20px;border-radius:15px"><h2 style="color:#ff2d2d">😢 Esta vez no ganaste</h2><h3>Salió: 🦁 {nombre_ganador}</h3><p>Sorteo #{sid} - ¡El próximo ya está abierto!</p></div>"""
+                enviar_correo_async(email, f"Resultado Sorteo #{sid}: Salió {nombre_ganador}", html)
+        c.execute(q("UPDATE sorteos SET estado='PAGADO' WHERE id=?"), (sid,))
+    else:
+        for uid,email in todos:
+            if email:
+                html=f"""<div style="font-family:Arial;background:#111;color:#fff;padding:20px;border-radius:15px"><h2>Resultado Sorteo #{sid}</h2><h3>🦁 Salió: {nombre_ganador}</h3><p>Nadie acertó. El fondo se va a Jackpot.</p></div>"""
+                enviar_correo_async(email, f"Resultado Sorteo #{sid}: {nombre_ganador} - Nadie ganó", html)
+        c.execute(q("UPDATE sorteos SET jackpot=?, estado='FINALIZADO' WHERE id=?"), (fondo, sid))
+
     _, tiempo = get_config()
+    proximo=get_proximo_cierre_global()
     c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO',?)"), (proximo.isoformat(), tiempo))
     con.commit(); con.close()
 
-scheduler=BackgroundScheduler()
-scheduler.add_job(sortear,'interval', seconds=60)
-scheduler.start()
-
-@app.route('/login')
-def login_page(): return render_template('login.html')
-
-@app.route('/api/register', methods=['POST'])
-def api_register():
-    try:
-        d=request.json
-        email=d['email'].strip().lower()
-        pw=hash_pass(d['password'])
-        tel=d.get('telefono','')
-        con=db(); c=con.cursor()
-        if is_postgres():
-            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,NOW()) RETURNING id"), (email,pw,tel,0))
-            uid=c.fetchone()[0]
-        else:
-            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,?)"), (email,pw,tel,0, datetime.now().isoformat()))
-            uid=c.lastrowid
-        con.commit(); con.close()
-        session['user']=uid; session['email']=email
-        return jsonify({"ok":True})
-    except Exception as e:
-        print("ERROR REGISTER:", e)
-        return jsonify({"ok":False,"msg": "Correo ya registrado" if "UNIQUE" in str(e) or "duplicate" in str(e).lower() else "Error: "+str(e)})
-
-@app.route('/api/login', methods=['POST'])
-def api_login():
-    d=request.json; email=d['email'].strip().lower(); pw=hash_pass(d['password'])
+def init_db():
     con=db(); c=con.cursor()
-    c.execute(q("SELECT id,email,saldo FROM usuarios WHERE email=? AND password=?"), (email,pw))
-    row=c.fetchone(); con.close()
-    if row:
-        session['user']=row[0]; session['email']=row[1]
-        return jsonify({"ok":True, "saldo": row[2]})
-    return jsonify({"ok":False,"msg":"Credenciales incorrectas"})
+    try:
+        c.execute(q("CREATE TABLE IF NOT EXISTS usuarios (id TEXT PRIMARY KEY, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo INTEGER DEFAULT 0)"))
+        c.execute(q("CREATE TABLE IF NOT EXISTS animales (id INTEGER PRIMARY KEY, nombre TEXT)"))
+        c.execute(q("CREATE TABLE IF NOT EXISTS sorteos (id SERIAL PRIMARY KEY, fecha_hora_cierre TEXT, estado TEXT, tiempo_min INTEGER DEFAULT 60, animal_ganador INTEGER, recaudacion INTEGER, margen_plataforma INTEGER, fondo_premios INTEGER, jackpot INTEGER)"))
+        c.execute(q("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id TEXT, animal_id INTEGER, monto INTEGER, fecha TEXT)"))
+        c.execute(q("CREATE TABLE IF NOT EXISTS recargas_bcp (id SERIAL PRIMARY KEY, user_id TEXT, monto INTEGER, numero_operacion TEXT, fecha_operacion TEXT, titular TEXT, voucher_path TEXT, estado TEXT, fecha TEXT)"))
+        c.execute(q("CREATE TABLE IF NOT EXISTS retiros (id SERIAL PRIMARY KEY, usuario_id TEXT, monto INTEGER, banco_info TEXT, estado TEXT, fecha TEXT)"))
+        c.execute(q("CREATE TABLE IF NOT EXISTS configuracion (clave TEXT PRIMARY KEY, valor TEXT)"))
+        c.execute(q("SELECT COUNT(*) FROM animales"));
+        if c.fetchone()[0]==0:
+            animales=['Perro','Gato','Tigre','León','Elefante','Mono','Cebra','Oso','Lobo','Águila','Tortuga','Serpiente','Delfín','Caballo','Vaca','Gallina','Cerdo','Conejo','Panda','Koala','Jirafa','Hipopótamo','Rinoceronte','Cocodrilo','Pingüino']
+            for i,n in enumerate(animales,1):
+                c.execute(q("INSERT INTO animales (id,nombre) VALUES (?,?) ON CONFLICT DO NOTHING") if DATABASE_URL else q("INSERT OR IGNORE INTO animales (id,nombre) VALUES (?,?)"), (i,n))
+        c.execute(q("SELECT COUNT(*) FROM sorteos WHERE estado='ABIERTO'"))
+        if c.fetchone()[0]==0:
+            proximo=get_proximo_cierre_global()
+            _, tiempo = get_config()
+            c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO',?)"), (proximo.isoformat(), tiempo))
+        con.commit()
+    except Exception as e:
+        print("init_db error", e)
+    con.close()
 
-@app.route('/logout')
-def logout(): session.clear(); return redirect('/login')
+init_db()
 
 @app.route('/')
-def player():
-    if 'user' not in session: return redirect('/login')
+def index():
+    pausado,_=get_config()
     con=db(); c=con.cursor()
-    c.execute(q("SELECT * FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); s=c.fetchone()
-    if not s:
-        proximo = get_proximo_cierre_global()
-        c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado) VALUES (?, 'ABIERTO')"),(proximo.isoformat(),)); con.commit()
-        c.execute(q("SELECT * FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); s=c.fetchone()
-    c.execute(q("SELECT saldo,email FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
-    c.execute(q("SELECT * FROM animales")); anims=c.fetchall()
-    c.execute(q("SELECT fecha_hora_cierre, animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') ORDER BY id DESC LIMIT 24")); historial=c.fetchall()
+    c.execute(q("SELECT id, fecha_hora_cierre, tiempo_min FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+    sorteo=c.fetchone()
     con.close()
-    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=u[0] if u else 0, email=u[1] if u else '', bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
+    return render_template('index.html', sorteo=sorteo, pausado=pausado)
+
+@app.route('/api/sorteo-actual')
+def api_sorteo_actual():
+    sortear()
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT id, fecha_hora_cierre, estado FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+    s=c.fetchone()
+    con.close()
+    if not s: return jsonify({"id":0,"cierre":"","estado":"CERRADO"})
+    return jsonify({"id":s[0],"cierre":s[1],"estado":s[2]})
+
+@app.route('/api/animales')
+def api_animales():
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT id, nombre FROM animales ORDER BY id"))
+    rows=c.fetchall(); con.close()
+    return jsonify([{"id":r[0],"nombre":r[1]} for r in rows])
 
 @app.route('/api/apostar-multiple', methods=['POST'])
 def apostar_multiple():
@@ -201,31 +213,72 @@ def apostar_multiple():
     pausado,_ = get_config()
     if pausado: return jsonify({"ok":False,"msg":"Sala pausada por admin"})
     data=request.json['apuestas']; uid=session['user']
-    con=db(); c=con.cursor(); c.execute(q("SELECT saldo FROM usuarios WHERE id=?"), (uid,)); saldo=c.fetchone()[0]
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT saldo, email FROM usuarios WHERE id=?"), (uid,))
+    row = c.fetchone()
+    saldo = row[0] if row else 0
+    email_user = row[1] if row and len(row)>1 else ""
     total=sum([int(v) for v in data.values()])
     if saldo < total: con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente S/{saldo}"})
-    c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); sid=c.fetchone()[0]
+    c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+    s=c.fetchone()
+    if not s: con.close(); return jsonify({"ok":False,"msg":"No hay sorteo abierto"})
+    sid=s[0]
+    nombres_apuestas = []
     for animal_id, monto in data.items():
+        c.execute(q("SELECT nombre FROM animales WHERE id=?"), (int(animal_id),))
+        nom = c.fetchone()
+        nom = nom[0] if nom else f"Animal {animal_id}"
+        nombres_apuestas.append(f"{nom} - S/{monto}")
         c.execute(q("INSERT INTO apuestas (id,sorteo_id,usuario_id,animal_id,monto,fecha) VALUES (?,?,?,?,?,?)"), (str(uuid.uuid4()), sid, uid, int(animal_id), int(monto), datetime.now().isoformat()))
     c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=?"), (total, uid))
     con.commit(); con.close()
+    if email_user:
+        lista_html = "<br>".join([f"🦁 {x}" for x in nombres_apuestas])
+        html = f"""<div style="font-family:Arial;background:#111;color:#fff;padding:20px;border-radius:15px"><h2 style="color:#e9c97a">✅ Apuesta Confirmada - Sorteo #{sid}</h2><p>Has apostado en Global Lotery:</p><p style="background:#222;padding:15px;border-radius:10px">{lista_html}</p><p><b>Total:</b> S/ {total}</p><p>¡Suerte! Te avisaremos el resultado por correo.</p></div>"""
+        enviar_correo_async(email_user, f"✅ Apuesta confirmada Sorteo #{sid} - S/ {total}", html)
     return jsonify({"ok":True})
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    d=request.json; email=d.get('email','').strip().lower(); password=d.get('password','')
+    con=db(); c=con.cursor(); c.execute(q("SELECT id, password FROM usuarios WHERE email=?"), (email,)); row=c.fetchone(); con.close()
+    if row and check_pass(password, row[1]): session['user']=row[0]; return jsonify({"ok":True})
+    return jsonify({"ok":False,"msg":"Credenciales incorrectas"})
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    d=request.json; email=d.get('email','').strip().lower(); password=d.get('password',''); telefono=d.get('telefono','')
+    if not email or not password: return jsonify({"ok":False,"msg":"Falta email/pass"})
+    con=db(); c=con.cursor()
+    try:
+        uid=str(uuid.uuid4())
+        c.execute(q("INSERT INTO usuarios (id,email,password,telefono,saldo) VALUES (?,?,?,?,0)"), (uid, email, hash_pass(password), telefono))
+        con.commit(); session['user']=uid
+        con.close()
+        return jsonify({"ok":True})
+    except Exception as e:
+        con.close()
+        return jsonify({"ok":False,"msg":"Email ya registrado"})
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout(): session.pop('user',None); return jsonify({"ok":True})
 
 @app.route('/api/recarga-bcp', methods=['POST'])
 def recarga_bcp():
-    if 'user' not in session: return jsonify({"ok":False})
-    monto=int(request.form.get('monto',0) or (request.json.get('monto',0) if request.is_json else 0))
-    operacion=request.form.get('operacion','') or (request.json.get('operacion','') if request.is_json else '')
-    file=request.files.get('voucher'); voucher_path=""
+    if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"})
+    monto=request.form.get('monto'); oper=request.form.get('operacion'); titular=request.form.get('titular',''); fecha_op=request.form.get('fecha_op','')
+    file=request.files.get('voucher')
+    path=""
     if file:
-        os.makedirs("static/vouchers", exist_ok=True)
-        fname=secure_filename(f"{session['user']}_{operacion}_{int(datetime.now().timestamp())}.jpg")
-        voucher_path=os.path.join("static/vouchers", fname); file.save(voucher_path)
+        fname=secure_filename(file.filename)
+        os.makedirs('static/vouchers', exist_ok=True)
+        path=f"static/vouchers/{uuid.uuid4()}_{fname}"
+        file.save(path)
     con=db(); c=con.cursor()
-    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,operacion,estado,fecha,voucher) VALUES (?,?,?,?,?,?)"),(session['user'], monto, operacion, 'pendiente', datetime.now().isoformat(), voucher_path))
+    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,numero_operacion,fecha_operacion,titular,voucher_path,estado,fecha) VALUES (?,?,?,?,?,?,?,?)"), (session['user'], int(monto), oper, fecha_op, titular, path, 'pendiente', datetime.now().isoformat()))
     con.commit(); con.close()
-    return jsonify({"ok":True,"msg":f"Voucher S/{monto} enviado"})
-
+    return jsonify({"ok":True,"msg":"Recarga enviada, espera aprobación"})
 @app.route("/api/solicitar-retiro", methods=["POST"])
 def solicitar_retiro():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
@@ -239,7 +292,7 @@ def solicitar_retiro():
     col = _get_col_retiros()
     c.execute(q(f"INSERT INTO retiros ({col}, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, 'PENDIENTE', datetime.now().isoformat()))
     con.commit(); con.close()
-    return jsonify({"ok":True, "msg": f"Guardado con {col}"})
+    return jsonify({"ok":True, "msg": f"Solicitud de retiro S/ {monto} guardada"})
 
 @app.route('/api/admin/retiros')
 def api_admin_retiros():
