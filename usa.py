@@ -147,23 +147,17 @@ def api_register():
         email=d['email'].strip().lower()
         pw=hash_pass(d['password'])
         tel=d.get('telefono','')
-
         con=db(); c=con.cursor()
-
         if is_postgres():
             c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,NOW()) RETURNING id"), (email,pw,tel,0))
             uid=c.fetchone()[0]
         else:
             c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,?)"), (email,pw,tel,0, datetime.now().isoformat()))
             uid=c.lastrowid
-
         con.commit()
-
         if is_postgres():
-            # por si acaso confirmamos
             c.execute(q("SELECT id FROM usuarios WHERE email=?"), (email,))
             uid=c.fetchone()[0]
-
         con.close()
         session['user']=uid; session['email']=email
         return jsonify({"ok":True})
@@ -199,6 +193,7 @@ def player():
     c.execute(q("SELECT fecha_hora_cierre, animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') ORDER BY id DESC LIMIT 24")); historial=c.fetchall()
     con.close()
     return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=u[0] if u else 0, email=u[1] if u else '', bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
+
 @app.route('/api/apostar-multiple', methods=['POST'])
 def apostar_multiple():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"})
@@ -217,30 +212,81 @@ def apostar_multiple():
 
 @app.route('/api/recarga-bcp', methods=['POST'])
 def recarga_bcp():
-    if 'user' not in session: return jsonify({"ok":False})
+    uid = session.get('user')
+    if not uid:
+        email_fb = request.form.get('email_fallback','').strip().lower()
+        if not email_fb and request.is_json:
+            try: email_fb = (request.json.get('email_fallback','') or '').strip().lower()
+            except: pass
+        if email_fb:
+            try:
+                con_fb = db(); c_fb = con_fb.cursor()
+                c_fb.execute(q("SELECT id FROM usuarios WHERE email=?"), (email_fb,))
+                r = c_fb.fetchone()
+                con_fb.close()
+                if r:
+                    uid = r[0]
+                    session['user'] = uid
+            except: pass
+    if not uid:
+        return jsonify({"ok":False,"msg":"No logueado"}),401
+
     monto=int(request.form.get('monto',0) or (request.json.get('monto',0) if request.is_json else 0))
     operacion=request.form.get('operacion','') or (request.json.get('operacion','') if request.is_json else '')
     file=request.files.get('voucher'); voucher_path=""
     if file:
         os.makedirs("static/vouchers", exist_ok=True)
-        fname=secure_filename(f"{session['user']}_{operacion}_{int(datetime.now().timestamp())}.jpg")
+        fname=secure_filename(f"{uid}_{operacion}_{int(datetime.now().timestamp())}.jpg")
         voucher_path=os.path.join("static/vouchers", fname); file.save(voucher_path)
     con=db(); c=con.cursor()
-    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,operacion,estado,fecha,voucher) VALUES (?,?,?,?,?,?)"),(session['user'], monto, operacion, 'pendiente', datetime.now().isoformat(), voucher_path))
+    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,operacion,estado,fecha,voucher) VALUES (?,?,?,?,?,?)"),(uid, monto, operacion, 'pendiente', datetime.now().isoformat(), voucher_path))
     con.commit(); con.close()
     return jsonify({"ok":True,"msg":f"Voucher S/{monto} enviado"})
 
 @app.route("/api/solicitar-retiro", methods=["POST"])
 def solicitar_retiro():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
-    data=request.get_json(); monto=int(float(data.get("monto",0))); yape=data.get("yape","")
-    con=db(); c=con.cursor(); c.execute(q("SELECT saldo FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
-    if not u or u[0] < monto: con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente S/{u[0] if u else 0}"})
-    c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=?"), (monto, session['user']))
+    data=request.get_json()
+    monto=int(float(data.get("monto",0)))
+    yape=data.get("yape","")
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT saldo FROM usuarios WHERE id=?"), (session['user'],))
+    u=c.fetchone()
+    if not u or u[0] < monto:
+        con.close()
+        return jsonify({"ok":False,"msg":f"Saldo insuficiente S/{u[0] if u else 0}"})
+    # NO RESTAMOS AQUI, solo pendiente
     c.execute(q("INSERT INTO retiros (user_id, monto, banco_info, estado, fecha) VALUES (?,?,?,?,?)"), (session['user'], monto, yape, "pendiente", datetime.now().isoformat()))
     con.commit(); con.close()
-    return jsonify({"ok":True})
+    return jsonify({"ok":True,"msg":"Solicitud enviada"})
 
+@app.route("/api/aprobar-retiro", methods=["POST"])
+def aprobar_retiro():
+    if not session.get('admin'): return jsonify({"ok":False,"msg":"No admin"}),401
+    data=request.get_json(); rid=int(data.get("id",0))
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT user_id, monto, estado FROM retiros WHERE id=?"), (rid,))
+    r=c.fetchone()
+    if not r: con.close(); return jsonify({"ok":False,"msg":"No existe"})
+    if r[2] == 'aprobado': con.close(); return jsonify({"ok":True,"msg":"Ya estaba aprobado"})
+    c.execute(q("SELECT saldo FROM usuarios WHERE id=?"), (r[0],))
+    u=c.fetchone()
+    if not u or u[0] < r[1]:
+        con.close()
+        return jsonify({"ok":False,"msg":f"Usuario sin saldo S/{u[0] if u else 0}"})
+    c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=?"), (r[1], r[0]))
+    c.execute(q("UPDATE retiros SET estado='aprobado' WHERE id=?"), (rid,))
+    con.commit(); con.close()
+    return jsonify({"ok":True,"msg":"Aprobado y descontado"})
+
+@app.route("/api/rechazar-retiro", methods=["POST"])
+def rechazar_retiro():
+    if not session.get('admin'): return jsonify({"ok":False,"msg":"No admin"}),401
+    data=request.get_json(); rid=int(data.get("id",0))
+    con=db(); c=con.cursor()
+    c.execute(q("UPDATE retiros SET estado='rechazado' WHERE id=?"), (rid,))
+    con.commit(); con.close()
+    return jsonify({"ok":True,"msg":"Rechazado"})
 @app.route('/api/saldo')
 def api_saldo():
     if 'user' not in session: return jsonify({"saldo":0})
