@@ -11,7 +11,7 @@ app.secret_key=os.environ.get('SECRET_KEY','globallotery-secreto-2025')
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 MI_CUENTA_BCP="191-12345678-0-12 - Yape: 999888777"
 DATABASE_URL=os.environ.get('DATABASE_URL')
 EMAIL_USER = os.environ.get('EMAIL_USER')
@@ -257,36 +257,27 @@ def api_logout():
 
 @app.route('/api/recarga-bcp', methods=['POST'])
 def recarga_bcp():
-    uid = session.get('user')
-    # FALLBACK por si la cookie falla en el celular
-    if not uid:
-        email_fb = request.form.get('email_fallback','').strip().lower()
-        if email_fb:
-            con = db(); cur = con.cursor()
-            cur.execute(q("SELECT id FROM usuarios WHERE email=?"), (email_fb,))
-            r = cur.fetchone()
-            con.close()
-            if r:
-                uid = r[0]
-                session['user'] = uid
-    if not uid:
-        return jsonify({"ok":False,"msg":"No logueado - cierra y vuelve a loguearte"})
-    monto=request.form.get('monto'); oper=request.form.get('operacion')
-    titular=request.form.get('titular',''); fecha_op=request.form.get('fecha_op','')
-    file=request.files.get('voucher'); path=""
+    if 'user' not in session:
+        return jsonify({"ok":False,"msg":"No logueado"})
+    monto=request.form.get('monto')
+    oper=request.form.get('operacion')
+    titular=request.form.get('titular','')
+    fecha_op=request.form.get('fecha_op','')
+    file=request.files.get('voucher')
+    path=""
     if file:
-        from werkzeug.utils import secure_filename
-        import uuid, os
         fname=secure_filename(file.filename)
         os.makedirs('static/vouchers', exist_ok=True)
         path=f"static/vouchers/{uuid.uuid4()}_{fname}"
         file.save(path)
-    try: monto_int=int(float(monto))
-    except: monto_int=0
+    try:
+        monto_int = int(float(monto))
+    except:
+        monto_int = 0
     con=db(); c=con.cursor()
-    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,numero_operacion,fecha_operacion,titular,voucher_path,estado,fecha) VALUES (?,?,?,?,?,?,?,?)"), (uid, monto_int, oper, fecha_op, titular, path, 'pendiente', datetime.now().isoformat()))
+    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,numero_operacion,fecha_operacion,titular,voucher_path,estado,fecha) VALUES (?,?,?,?,?,?,?,?)"), (session['user'], monto_int, oper, fecha_op, titular, path, 'pendiente', datetime.now().isoformat()))
     con.commit(); con.close()
-    return jsonify({"ok":True,"msg":"Recarga enviada, esperando aprobación"})
+    return jsonify({"ok":True,"msg":"Recarga enviada"})
 
 @app.route("/api/solicitar-retiro", methods=["POST"])
 def solicitar_retiro():
