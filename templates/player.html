@@ -1,362 +1,196 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Animalitos - Global Lottery USA</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Lotery USA</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap');
-*{margin:0;padding:0;box-sizing:border-box;font-family:'Baloo 2',Arial}
-body{background:#07120e;color:#fff;padding-bottom:90px}
-.top{background:linear-gradient(180deg,#12372b,#0a2018);border:2px solid #d4a853;border-radius:16px;margin:8px;padding:10px;display:flex;justify-content:space-between;align-items:center}
-.logo{font-size:22px;font-weight:800;color:#ffcc4d;text-shadow:2px 2px 0 #000;line-height:1}
-.logo span{color:#fff;font-size:12px;display:block;text-align:center;letter-spacing:3px}
-.saldo{background:#000;border:1px solid #d4a853;border-radius:20px;padding:4px 12px;display:flex;align-items:center;gap:8px}
-.saldo b{color:#ffcc4d}
-.plus{background:#22c55e;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;cursor:pointer;box-shadow:0 0 10px #22c55e}
-.btn-retiro-top{background:#ff4757;border:none;border-radius:20px;padding:4px 10px;color:#fff;font-weight:800;font-size:11px;cursor:pointer;margin-left:6px}
-.info{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:6px;padding:6px}
-.box{background:#102a22;border:1px solid #d4a853;border-radius:12px;padding:8px;text-align:center}
-.box.live{background:#3a1212;border-color:#ff4444}
-.box small{color:#d4a853;font-size:10px}
-.box b{font-size:11px;display:block}
-.box b.red{color:#ff4444;font-size:18px;font-weight:800}
-.historial{margin:8px;background:#0f1f18;border:1px solid #d4a853;border-radius:12px;padding:10px}
-.historial-head{display:flex;justify-content:space-between;align-items:center}
-.historial-items{display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:4px}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:8px}
-.card{position:relative;background:radial-gradient(circle at top,#2a4a3a,#11221a);border:2px solid #d4a853;border-radius:12px;overflow:hidden;aspect-ratio:0.85;cursor:pointer;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.card.selected{border-color:#22c55e;box-shadow:0 0 12px #22c55e;transform:scale(.95)}
-.num{position:absolute;top:4px;left:4px;background:#d4a853;color:#000;font-weight:800;font-size:11px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-.name{background:rgba(0,0,0,.7);font-size:8px;text-align:center;padding:3px 0;position:absolute;bottom:0;width:100%;text-transform:uppercase}
-.panel{background:#0f1f18;border-top:2px solid #d4a853;border-radius:16px 16px 0 0;padding:12px;margin-top:10px;position:sticky;bottom:0;z-index:10}
-.monto-row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
-.monto-row button{background:#1a3328;border:1px solid #d4a853;border-radius:20px;padding:6px 14px;color:#fff;font-size:13px;cursor:pointer}
-.monto-row button.active{background:#d4a853;color:#000;font-weight:800}
-.total{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:18px}
-.total b{color:#ffcc4d}
-.actions{display:grid;grid-template-columns:2fr 1fr;gap:8px}
-.btn-green{background:linear-gradient(180deg,#2ecc71,#1a8a4a);border:none;border-radius:12px;padding:12px;font-weight:800;color:#fff;cursor:pointer}
-.btn-red{background:linear-gradient(180deg,#e74c3c,#8a1a1a);border:none;border-radius:12px;padding:12px;font-weight:800;color:#fff;cursor:pointer}
-.modal-sala{position:fixed;inset:0;background:radial-gradient(circle at center,#12372b,#030a07);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10000;padding:15px;text-align:center}
-.modal-sala h2{color:#ffcc4d;font-size:26px;text-shadow:2px 2px 0 #000}
-.modal-sala.count{font-size:72px;font-weight:900;color:#fff;text-shadow:0 0 20px #22c55e;margin:10px 0;letter-spacing:2px}
-.animales-elegidos{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0;max-width:360px}
-.animales-elegidos div{background:#111;border:1.5px solid #d4a853;border-radius:12px;padding:6px 10px;font-size:12px}
-.ganador-box{background:#111;border:3px solid #d4a853;border-radius:20px;padding:20px;margin:15px 0;box-shadow:0 0 40px rgba(212,168,83,.6);min-width:260px}
-.ganador-box.emoji{font-size:80px}
-.btn-volver{width:100%;max-width:320px;background:linear-gradient(180deg,#d4a853,#a67c2e);border:none;border-radius:14px;padding:14px;font-weight:900;color:#000;margin-top:15px;cursor:pointer;font-size:16px}
-.modal-recarga{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:9999;padding:15px}
-.box-recarga{background:linear-gradient(180deg,#132a22,#0a1a14);border:2px solid #d4a853;border-radius:20px;padding:20px;width:100%;max-width:400px;box-shadow:0 0 50px rgba(212,168,83,.35);max-height:95vh;overflow-y:auto}
-.box-recarga h3{color:#ffcc4d;text-align:center;font-size:20px}
-.box-recarga small.sub{display:block;text-align:center;color:#8aa89a;font-size:11px;margin-bottom:14px}
-.label-rec{font-size:11px;color:#d4a853;margin:12px 0 6px}
-.montos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.montos button{background:#1a3328;border:1px solid #d4a853;border-radius:12px;padding:11px;color:#fff;font-weight:800;cursor:pointer;font-size:14px}
-.montos button.active{background:#d4a853;color:#000}
-.input-card{width:100%;background:#000;border:1px solid #3a5a4a;border-radius:12px;padding:12px;margin:6px 0;color:#fff;outline:none;font-size:14px}
-.btn-pagar{width:100%;background:linear-gradient(180deg,#2ecc71,#1a8a4a);border:none;border-radius:14px;padding:14px;font-weight:900;color:#fff;font-size:16px;cursor:pointer;margin-top:14px}
-.btn-cancel{background:transparent;border:1px solid #444;border-radius:12px;padding:11px;width:100%;color:#aaa;margin-top:10px;cursor:pointer}
-.bcp-destacado{background:#000;border:1.5px dashed #d4a853;border-radius:14px;padding:12px;margin:10px 0}
-.secure{text-align:center;font-size:10px;color:#5a7a6d;margin-top:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0a;color:#fff;font-family:Arial, sans-serif}
+.header{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;background:#111;border-bottom:2px solid #e9c97a;position:sticky;top:0;z-index:10}
+.logo{font-weight:bold;color:#e9c97a;font-size:18px}
+.saldo-box{background:#1a1a1a;padding:6px 12px;border-radius:20px;border:1px solid #333}
+.btn{padding:8px 14px;border-radius:8px;border:none;font-weight:bold;cursor:pointer}
+.btn-gold{background:#e9c97a;color:#000}
+.btn-green{background:#1ee66d;color:#000}
+.btn-outline{background:transparent;border:1px solid #e9c97a;color:#e9c97a}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:15px}
+@media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
+.animal{background:#1a1a1a;border:2px solid #333;border-radius:12px;padding:10px;text-align:center;cursor:pointer}
+.animal.selected{border-color:#1ee66d;background:#122b1a}
+.animal .emoji{font-size:32px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;padding:15px}
+.modal.active{display:flex}
+.modal-box{background:#1a1a1a;border:1px solid #333;border-radius:15px;padding:20px;width:100%;max-width:400px}
+input,select{width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px solid #333;background:#111;color:#fff}
 </style>
 </head>
 <body>
-<div class="top">
-<div style="font-size:24px" onclick="location.href='/logout'">☰</div>
-<div class="logo">ANIMALITOS<span>GLOBAL</span></div>
-<div><div class="saldo"><small>balance</small> <b id="saldo">$ 0.00</b> <div class="plus" id="btn-plus">+</div> <button class="btn-retiro-top" id="btn-retiro-top">WITHDRAW</button></div>
-<div style="text-align:right;font-size:10px;margin-top:4px">ID: {{ session['user'] if session['user'] else 0 }} | Zelle weinderlyn@gmail.com</div></div>
-</div>
-<div style="display:flex;gap:10px;margin:12px 0">
-  <button onclick="verMisApuestas()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">🎯 Mis Jugadas</button>
-  <button onclick="verHistorial()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">📜 Últimos que Salieron</button>
-</div>
-
-<div id="panelHistorial" style="display:none;background:#151515;border:1px solid #252525;border-radius:16px;padding:14px;margin-bottom:12px">
-  <div style="display:flex;justify-content:space-between"><b id="tituloHistorial"></b><span onclick="document.getElementById('panelHistorial').style.display='none'" style="cursor:pointer">X</span></div>
-  <div id="contenidoHistorial" style="margin-top:10px;font-size:13px"></div>
+<div class="header">
+  <div class="logo">🦁 GLOBAL LOTERY</div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="saldo-box">Saldo: $<span id="saldo">0</span></div>
+    <button class="btn btn-green" onclick="abrirRecarga()">+</button>
+    <button class="btn btn-outline" id="btnLogin" onclick="abrirLogin()">Login</button>
+    <button class="btn btn-outline" id="btnLogout" style="display:none" onclick="logout()">Salir</button>
+  </div>
 </div>
 
-<script>
-async function verMisApuestas(){
-  document.getElementById('panelHistorial').style.display='block';
-  document.getElementById('tituloHistorial').innerText='🎯 Mis últimas apuestas';
-  document.getElementById('contenidoHistorial').innerText='Cargando...';
-  let r=await fetch('/api/mis-apuestas', {credentials:'include'}); let data=await r.json();
-  if(data.length==0){document.getElementById('contenidoHistorial').innerHTML='Aún no has apostado'; return;}
-  let html='<table style="width:100%;border-collapse:collapse"><tr><th>Sorteo</th><th>Mi Animal</th><th>Ganó</th><th>Monto</th></tr>';
-  data.forEach(x=>{let color = x.mi_animal==x.ganador?'#1ee66d':'#fff'; html+=`<tr><td>#${x.sorteo}</td><td>${x.mi_animal}</td><td style="color:${color};font-weight:bold">${x.ganador}</td><td>S/${x.monto}</td></tr>`});
-  html+='</table>';
-  document.getElementById('contenidoHistorial').innerHTML=html;
+<div style="padding:10px 15px;background:#111;display:flex;justify-content:space-between">
+  <div>Sorteo #<span id="sorteoId">-</span></div>
+  <div id="countdown">00:00</div>
+  <div id="estado">ABIERTO</div>
+</div>
+
+<div class="grid" id="gridAnimales"></div>
+
+<div style="padding:15px">
+  <h3>Mi apuesta: $<span id="totalApuesta">0</span></h3>
+  <div id="listaApuesta" style="margin:10px 0;color:#aaa">Ningún animal seleccionado</div>
+  <button class="btn btn-gold" style="width:100%;padding:15px;font-size:18px" onclick="apostar()">APOSTAR AHORA</button>
+</div>
+
+<!-- LOGIN -->
+<div class="modal" id="modalLogin">
+  <div class="modal-box">
+    <h2>Entrar / Registro</h2>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Contraseña">
+    <input id="telefono" placeholder="Teléfono (solo registro)">
+    <button class="btn btn-gold" style="width:100%;margin-top:10px" onclick="login()">LOGIN</button>
+    <button class="btn btn-outline" style="width:100%;margin-top:8px" onclick="register()">REGISTRARSE</button>
+    <button class="btn" style="width:100%;margin-top:8px;background:#333;color:#fff" onclick="cerrarModals()">Cerrar</button>
+    <div id="msgLogin" style="margin-top:10px;color:#ff6b6b"></div>
+  </div>
+</div>
+
+<!-- RECARGA -->
+<div class="modal" id="modalRecarga">
+  <div class="modal-box">
+    <h2>Recarga BCP / Zelle</h2>
+    <p style="font-size:13px;color:#aaa;margin:8px 0">Cuenta: {{ bcp_cuenta if bcp_cuenta else '191-12345678-0-12' }}</p>
+    <input id="r_monto" type="number" placeholder="Monto $">
+    <input id="r_oper" placeholder="Número de operación / Confirmación">
+    <input id="r_titular" placeholder="Titular">
+    <input id="r_fecha" type="date">
+    <input id="r_voucher" type="file" accept="image/*">
+    <button class="btn btn-green" style="width:100%;margin-top:10px" onclick="enviarRecarga()">ENVIAR VOUCHER</button>
+    <button class="btn" style="width:100%;margin-top:8px;background:#333;color:#fff" onclick="cerrarModals()">Cerrar</button>
+    <div id="msgRecarga" style="margin-top:10px"></div>
+  </div>
+</div><script>
+let apuestas = {}
+let saldoActual = 0
+
+function abrirLogin(){document.getElementById('modalLogin').classList.add('active')}
+function abrirRecarga(){document.getElementById('modalRecarga').classList.add('active')}
+function cerrarModals(){document.querySelectorAll('.modal').forEach(m=>m.classList.remove('active'))}
+
+async function cargarAnimales(){
+  const r = await fetch('/api/animales',{credentials:'include'})
+  const data = await r.json()
+  const grid = document.getElementById('gridAnimales')
+  grid.innerHTML=''
+  data.forEach(a=>{
+    const div=document.createElement('div')
+    div.className='animal'
+    div.innerHTML=`<div class="emoji">🦁</div><div>${a.nombre}</div><div style="margin-top:5px"><input type="number" min="1" placeholder="$" style="width:70px;margin:0" onclick="event.stopPropagation()" id="m_${a.id}"></div>`
+    div.onclick=()=>{
+      const m=parseInt(document.getElementById(`m_${a.id}`).value||0)
+      if(m>0){
+        apuestas[a.id]=m
+        div.classList.add('selected')
+        actualizarLista()
+      }else{
+        delete apuestas[a.id]
+        div.classList.remove('selected')
+        actualizarLista()
+      }
+    }
+    grid.appendChild(div)
+  })
 }
-async function verHistorial(){
-  document.getElementById('panelHistorial').style.display='block';
-  document.getElementById('tituloHistorial').innerText='📜 Últimos animales que salieron';
-  document.getElementById('contenidoHistorial').innerText='Cargando...';
-  let r=await fetch('/api/historial-global', {credentials:'include'}); let data=await r.json();
-  let html=''; data.forEach(x=>{html+=`#${x.id} - ${x.fecha} - <b>🦁 ${x.ganador}</b> (S/ ${x.recaudado})<br>`});
-  document.getElementById('contenidoHistorial').innerHTML=html || 'Aún no hay sorteos finalizados';
+
+function actualizarLista(){
+  let total=0
+  let txt=[]
+  for(let id in apuestas){total+=apuestas[id]; txt.push(`Animal ${id}: $${apuestas[id]}`)}
+  document.getElementById('totalApuesta').innerText=total
+  document.getElementById('listaApuesta').innerText= txt.length? txt.join(' | ') : 'Ningún animal seleccionado'
 }
+
+async function cargarSaldo(){
+  const r=await fetch('/api/saldo',{credentials:'include'})
+  const d=await r.json()
+  saldoActual=d.saldo||0
+  document.getElementById('saldo').innerText=saldoActual
+  if(saldoActual>0){
+    document.getElementById('btnLogin').style.display='none'
+    document.getElementById('btnLogout').style.display='block'
+  }
+}
+
+async function cargarSorteo(){
+  const r=await fetch('/api/sorteo-actual',{credentials:'include'})
+  const d=await r.json()
+  document.getElementById('sorteoId').innerText=d.id||0
+  document.getElementById('estado').innerText=d.estado||''
+}
+
+async function login(){
+  const email=document.getElementById('email').value
+  const password=document.getElementById('password').value
+  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password})})
+  const d=await r.json()
+  if(d.ok){cerrarModals(); cargarSaldo(); alert('Logueado')}else{document.getElementById('msgLogin').innerText=d.msg}
+}
+
+async function register(){
+  const email=document.getElementById('email').value
+  const password=document.getElementById('password').value
+  const telefono=document.getElementById('telefono').value
+  const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password,telefono})})
+  const d=await r.json()
+  if(d.ok){cerrarModals(); cargarSaldo(); alert('Registrado')}else{document.getElementById('msgLogin').innerText=d.msg}
+}
+
+async function logout(){
+  await fetch('/api/logout',{method:'POST',credentials:'include'})
+  location.reload()
+}
+
+async function apostar(){
+  if(Object.keys(apuestas).length==0){alert('Selecciona animales');return}
+  const r=await fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({apuestas})})
+  const d=await r.json()
+  if(d.ok){alert('Apuesta enviada'); apuestas={}; actualizarLista(); cargarSaldo()}else{alert(d.msg)}
+}
+
+// ESTA ES LA FUNCIÓN QUE TE DABA NO LOGUEADO - YA ESTÁ ARREGLADA
+async function enviarRecarga(){
+  const fd=new FormData()
+  fd.append('monto',document.getElementById('r_monto').value)
+  fd.append('operacion',document.getElementById('r_oper').value)
+  fd.append('titular',document.getElementById('r_titular').value)
+  fd.append('fecha_op',document.getElementById('r_fecha').value)
+  const file=document.getElementById('r_voucher').files[0]
+  if(file) fd.append('voucher',file)
+
+  document.getElementById('msgRecarga').innerText='Enviando...'
+  const r=await fetch('/api/recarga-bcp',{method:'POST',body:fd,credentials:'include'})
+  const d=await r.json()
+  if(d.ok){
+    document.getElementById('msgRecarga').style.color='#1ee66d'
+    document.getElementById('msgRecarga').innerText='✅ '+d.msg
+  }else{
+    document.getElementById('msgRecarga').style.color='#ff6b6b'
+    document.getElementById('msgRecarga').innerText='❌ '+d.msg
+  }
+}
+
+cargarAnimales(); cargarSaldo(); cargarSorteo();
+setInterval(cargarSorteo, 10000);
+setInterval(cargarSaldo, 5000);
 </script>
-<div class="info">
-<div class="box"><small>CURRENT PERIOD</small><b id="periodo">{{ sorteo[0] if sorteo else 0 }}</b></div>
-<div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
-<div class="box"><small>PLAYING</small><b id="jugadores">In room</b></div>
-</div>
-<div class="historial">
-<div class="historial-head">
-<b style="font-size:11px;color:#d4a853">📜 LAST WINNERS</b>
-<small style="color:#5a7a6d;font-size:10px;cursor:pointer" onclick="cargarHistorial()" id="btnRefreshHist">↻ Refresh</small>
-</div>
-<div id="historialAnimales" class="historial-items"></div>
-</div>
-<div class="grid" id="grid"></div>
-<div class="panel">
-<div style="font-size:12px;color:#d4a853">💰 BET AMOUNT - From $5 to $500</div>
-<div class="monto-row" id="montoPorApuesta">
-<button type="button" class="active" data-v="5">$ 5</button><button type="button" data-v="10">$ 10</button><button type="button" data-v="20">$ 20</button><button type="button" data-v="50">$ 50</button><button type="button" data-v="100">$ 100</button><button type="button" data-v="200">$ 200</button><button type="button" data-v="500">$ 500</button>
-</div>
-<div class="total"><span>Total bet:</span><b id="total">$ 0.00</b></div>
-<div class="actions">
-<button type="button" class="btn-green" id="btn-confirmar">✅ Confirm Bet</button>
-<button type="button" class="btn-red" id="btn-limpiar">🗑️ Clear</button>
-</div>
-<div style="margin-top:8px;text-align:center"><small id="misRetirosTxt" style="color:#aaa;font-size:10px"></small></div>
-</div>
-<div id="modalSala" class="modal-sala">
-<h2>🎯 Your Picks</h2>
-<div id="listaElegidos" class="animales-elegidos"></div>
-<div style="margin-top:10px;color:#d4a853;font-size:12px">DRAW IN</div>
-<div id="countdownSala" class="count">60:00</div>
-<div style="font-size:12px;color:#aaa">Total bet: <b id="totalSala" style="color:#ffcc4d">$ 0</b><br>Wait for result...</div>
-<div style="margin-top:20px;font-size:10px;color:#666">Zelle weinderlyn@gmail.com - Room ID {{ sorteo[0] if sorteo else 0 }}</div>
-</div>
-<div id="modalResultado" class="modal-sala">
-<h2>🏆 RESULT</h2>
-<div class="ganador-box">
-<div id="ganadorEmoji" class="emoji">🦁</div>
-<div id="ganadorNombre" style="font-size:22px;font-weight:900;color:#ffcc4d;margin-top:8px">LEON</div>
-<div id="ganadorNum" style="font-size:12px;color:#aaa">N° 07</div>
-<div id="ganasteTexto" style="margin-top:12px;font-size:14px;line-height:1.4"></div>
-</div>
-<button class="btn-volver" onclick="volverSala()">🔄 Back to room</button>
-</div><div id="modalRecarga" class="modal-recarga">
-<div class="box-recarga">
-<h3>💳 Add Balance</h3>
-<small class="sub">Current balance: <b id="saldoModal" style="color:#ffcc4d">$ 0.00</b></small>
-<div class="label-rec">💵 AMOUNT</div>
-<div class="montos" id="montosBtn">
-<button type="button" data-v="10">$ 10</button>
-<button type="button" data-v="20" class="active">$ 20</button>
-<button type="button" data-v="50">$ 50</button>
-<button type="button" data-v="50">$ 50</button>
-<button type="button" data-v="100">$ 100</button>
-<button type="button" data-v="500">$ 500</button>
-</div>
-<input id="montoCustom" type="number" class="input-card" placeholder="Other amount $ (min $15)">
-<div class="bcp-destacado">
-<div style="font-size:11px;color:#d4a853;font-weight:800;text-align:center">🏦 SEND TO MY ZELLE</div>
-<div style="text-align:center;margin:6px 0"><b style="font-size:22px;color:#ffcc4d" id="montoMostrar">$ 20.00</b></div>
-<div style="background:#111;border-radius:10px;padding:10px;font-size:12px;line-height:1.7;text-align:left">
-Zelle: <b style="color:#ffcc4d;font-size:14px">weinderlyn@gmail.com</b><br>
-Name: <b>weinder gil</b><br>
-Bank: <b>Chase / BOFA</b>
-</div>
-<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="navigator.clipboard.writeText('weinderlyn@gmail.com');alert('✅ Zelle copied')">📋 Copy Zelle</button></div>
-<div class="label-rec">📤 UPLOAD RECEIPT</div>
-<input type="file" id="voucherFile" accept="image/*" class="input-card">
-<input id="operacion" class="input-card" placeholder="Zelle confirmation # (ex: 034521) *">
-<input id="cardNombre" class="input-card" placeholder="Name of sender">
-<button type="button" class="btn-pagar" id="btnPagar">✅ Send voucher - $ 50</button>
-<button type="button" class="btn-cancel" onclick="cerrarRecarga()">Cancel</button>
-<div class="secure">Verified account weinderlyn@gmail.com - Approved in 5 min</div>
-</div>
-</div>
-
-<div id="modalRetiro" class="modal-recarga">
-<div class="box-recarga">
-<h3>💸 Request Withdrawal</h3>
-<small class="sub">Available balance: <b id="saldoModalRetiro" style="color:#ffcc4d">$ 0.00</b></small>
-<div class="label-rec">💵 WITHDRAW AMOUNT</div>
-<div class="montos" id="montosRetiroBtn">
-<button type="button" data-v="30">$ 30</button>
-<button type="button" data-v="50">$ 50</button>
-<button type="button" data-v="100">$ 100</button>
-<button type="button" data-v="200">$ 200</button>
-<button type="button" data-v="500">$ 500</button>
-<button type="button" data-v="1000">All</button>
-</div>
-<input id="montoRetiroCustom" type="number" class="input-card" placeholder="Other amount $">
-<div class="label-rec">🏦 WHERE TO SEND?</div>
-<input id="bancoRetiro" type="text" class="input-card" placeholder="Ex: Zelle 305-xxx - John Doe">
-<div style="background:#111;border-radius:10px;padding:10px;font-size:11px;color:#aaa;margin-top:8px">⚠️ Deducted when admin APPROVES.</div>
-<button type="button" class="btn-pagar" id="btnEnviarRetiro" style="background:linear-gradient(180deg,#ff4757,#8a1a1a)">💸 Request Withdrawal - $ 50</button>
-<button type="button" class="btn-cancel" onclick="cerrarRetiro()">Cancel</button>
-<div id="listaMisRetiros" style="margin-top:12px;font-size:11px"></div>
-</div>
-</div>
-
-<script>
-let saldoActual=0; try{saldoActual=parseFloat("{{ saldo|default(0) }}")||0;}catch(e){}
-let periodoId="{{ sorteo[0] if sorteo else 0 }}";
-document.getElementById('saldo').innerText='$ '+saldoActual.toFixed(2);
-const animales=[[1,"Perro","🐶"],[2,"Gato","🐱"],[3,"Ratón","🐭"],[4,"Conejo","🐰"],[5,"Zorro","🦊"],[6,"Tigre","🐯"],[7,"León","🦁"],[8,"Elefante","🐘"],[9,"Mono","🐒"],[10,"Gallina","🐔"],[11,"Gallo","🐓"],[12,"Cerdo","🐷"],[13,"Vaca","🐄"],[14,"Caballo","🐴"],[15,"Alpaca","🦙"],[16,"Vicuña","🦙"],[17,"Cóndor","🦅"],[18,"Oso","🐻"],[19,"Puma","🦁"],[20,"Gallito","🐦"],[21,"Caimán","🐊"],[22,"Serpiente","🐍"],[23,"Rana","🐸"],[24,"Delfin","🐬"],[25,"Guacamayo","🦜"]];
-let monto=5, apuestas={}, misApuestasGuardadas={};
-function getCierreGlobal(){ const unaHora = 60*60*1000; return new Date(Math.ceil(Date.now() / unaHora) * unaHora); }
-let cierre = getCierreGlobal();
-const grid=document.getElementById('grid');
-animales.forEach(a=>{
- let d=document.createElement('div'); d.className='card'; d.dataset.id=a[0];
- d.innerHTML=`<div class="num">${String(a[0]).padStart(2,'0')}</div><div style="font-size:36px">${a[2]}</div><div class="name">${a[1]}</div>`;
- d.onclick=()=>{ if(apuestas[a[0]]){ delete apuestas[a[0]]; d.classList.remove('selected'); } else { apuestas[a[0]]=monto; d.classList.add('selected'); } calc(); };
- grid.appendChild(d);
-});
-function calc(){ let t=Object.values(apuestas).reduce((a,b)=>a+b,0); document.getElementById('total').innerText='$ '+t.toFixed(2); return t; }
-document.querySelectorAll('#montoPorApuesta button').forEach(b=>{ b.onclick=()=>{ document.querySelectorAll('#montoPorApuesta button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); monto=parseInt(b.dataset.v); for(let k in apuestas) apuestas[k]=monto; calc(); }; });
-document.getElementById('btn-limpiar').onclick=()=>{ apuestas={}; document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected')); calc(); };
-document.getElementById('btn-confirmar').onclick=()=>{
- let total=calc(); if(total==0) return alert('Pick an animal'); if(saldoActual<total){ alert('Insufficient balance'); abrirRecarga(); return; }
- misApuestasGuardadas={...apuestas};
- fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apuestas}),credentials:'include'}).then(r=>r.json()).then(d=>{
-  if(d.ok){ saldoActual-=total; document.getElementById('saldo').innerText='$ '+saldoActual.toFixed(2); mostrarSalaConteo(); }
-  else alert(d.msg);
- });
-};
-function mostrarSalaConteo(){
- let html=''; let total=0;
- for(let id in misApuestasGuardadas){ let a=animales.find(x=>x[0]==id); if(a){ html+=`<div>${a[2]} ${a[1]} $${misApuestasGuardadas[id]}</div>`; total+=parseInt(misApuestasGuardadas[id]); } }
- document.getElementById('listaElegidos').innerHTML=html;
- document.getElementById('totalSala').innerText='$ '+total;
- document.getElementById('modalSala').style.display='flex';
-}
-function mostrarResultado(){
- document.getElementById('modalSala').style.display='none';
- fetch('/api/ultimo-resultado',{credentials:'include'}).then(r=>r.json()).then(d=>{
-  let idGanador = d.ganador!==null? parseInt(d.ganador) : (Math.floor(Math.random()*25)+1);
-  let g=animales.find(x=>x[0]==idGanador) || animales[6];
-  document.getElementById('ganadorEmoji').innerText=g[2];
-  document.getElementById('ganadorNombre').innerText=g[1].toUpperCase();
-  document.getElementById('ganadorNum').innerText='N° '+String(g[0]).padStart(2,'0');
-  if(misApuestasGuardadas[g[0]]){
-   document.getElementById('ganasteTexto').innerHTML=`🎉 <b style="color:#22c55e">YOU WON!</b><br>You bet $${misApuestasGuardadas[g[0]]} on ${g[1]}`;
-   fetch('/api/saldo',{credentials:'include'}).then(r=>r.json()).then(s=>{ saldoActual=s.saldo; document.getElementById('saldo').innerText='$ '+saldoActual.toFixed(2); });
-  } else {
-   document.getElementById('ganasteTexto').innerHTML=`😢 Not this time<br>Winner <b style="color:#ffcc4d">${g[1]}</b>`;
-  }
-  document.getElementById('modalResultado').style.display='flex';
-  cargarHistorial();
- });
-}
-function volverSala(){
- document.getElementById('modalResultado').style.display='none';
- document.getElementById('modalSala').style.display='none';
- apuestas={}; misApuestasGuardadas={};
- document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));
- calc();
- cierre=getCierreGlobal();
- cargarHistorial();
-}
-function cargarHistorial(){
- fetch('/api/historial-sorteos',{credentials:'include'}).then(r=>r.json()).then(h=>{
-   let cont=document.getElementById('historialAnimales'); cont.innerHTML='';
-   if(!h || h.length==0){ cont.innerHTML='<small style="color:#555">No draws yet</small>'; return; }
-   h.slice(0,20).forEach(row=>{
-     let id=row.animal_ganador; let a=animales.find(x=>x[0]==id); if(!a) return;
-     let div=document.createElement('div');
-     div.style.cssText='background:#111;border:1px solid #333;border-radius:10px;padding:6px 8px;text-align:center;min-width:62px;flex-shrink:0';
-     div.innerHTML=`<div style="font-size:22px">${a[2]}</div><div style="font-size:8px;color:#ffcc4d">${a[1]}</div><div style="font-size:9px;color:#aaa">#${String(a[0]).padStart(2,'0')}</div>`;
-     cont.appendChild(div);
-   });
- });
-}
-cargarHistorial();
-setInterval(()=>{
-  let diff=Math.max(0,Math.floor((cierre-new Date())/1000));
-  let mm=String(Math.floor(diff/60)).padStart(2,'0'); let ss=String(diff%60).padStart(2,'0');
-  let txt=mm+':'+ss;
-  document.getElementById('timer').innerText=txt;
-  let cd=document.getElementById('countdownSala'); if(cd) cd.innerText=txt;
-  if(diff<=0){
-    mostrarResultado();
-    cierre = getCierreGlobal();
-    apuestas={};
-    misApuestasGuardadas={};
-    document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));
-    calc();
-    cargarHistorial();
-  }
-},1000);
-let montoRecarga=50; const modalRecarga=document.getElementById('modalRecarga');
-function abrirRecarga(){ document.getElementById('saldoModal').innerText='$ '+saldoActual.toFixed(2); modalRecarga.style.display='flex'; }
-function cerrarRecarga(){ modalRecarga.style.display='none'; }
-document.getElementById('btn-plus').onclick=abrirRecarga;
-document.querySelectorAll('#montosBtn button').forEach(b=>{ b.onclick=()=>{ document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); montoRecarga=parseInt(b.dataset.v); document.getElementById('montoCustom').value=''; document.getElementById('btnPagar').innerText='✅ Send voucher - $ '+montoRecarga; document.getElementById('montoMostrar').innerText='$ '+montoRecarga+'.00'; }; });
-document.getElementById('montoCustom').oninput=(e)=>{ let v=parseInt(e.target.value); if(v>0){ montoRecarga=v; document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active')); document.getElementById('btnPagar').innerText='✅ Send voucher - $ '+v; document.getElementById('montoMostrar').innerText='$ '+v+'.00'; } };
-document.getElementById('btnPagar').onclick=()=>{
- let op=document.getElementById('operacion').value.trim(); if(!op) return alert('Put confirmation number');
- let fd=new FormData(); fd.append('monto',montoRecarga); fd.append('operacion',op); fd.append('nombre',document.getElementById('cardNombre').value);
- let file=document.getElementById('voucherFile').files[0]; if(file) fd.append('voucher',file);
- document.getElementById('btnPagar').innerText='⏳ Sending...';
- fetch('/api/recarga-bcp',{method:'POST',body:fd,credentials:'include'}).then(r=>r.json()).then(d=>{ alert(d.msg); if(d.ok) cerrarRecarga(); document.getElementById('btnPagar').innerText='✅ Send voucher - $ '+montoRecarga; });
-};
-let montoRetiro=50; const modalRetiro=document.getElementById('modalRetiro');
-function abrirRetiro(){ document.getElementById('saldoModalRetiro').innerText='$ '+saldoActual.toFixed(2); modalRetiro.style.display='flex'; cargarMisRetiros(); }
-function cerrarRetiro(){ modalRetiro.style.display='none'; }
-document.getElementById('btn-retiro-top').onclick=abrirRetiro;
-document.querySelectorAll('#montosRetiroBtn button').forEach(b=>{
-  b.onclick=()=>{
-    document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active')); b.classList.add('active');
-    let v=b.dataset.v;
-    if(v=='Todo' || v=='1000'){ montoRetiro=Math.floor(saldoActual); document.getElementById('montoRetiroCustom').value=montoRetiro; }
-    else { montoRetiro=parseInt(v); document.getElementById('montoRetiroCustom').value=''; }
-    document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - $ '+montoRetiro;
-  }
-});
-document.getElementById('montoRetiroCustom').oninput=(e)=>{ let v=parseInt(e.target.value); if(v>0){ montoRetiro=v; document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active')); document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - $ '+montoRetiro; } };
-document.getElementById('btnEnviarRetiro').onclick=async()=>{
-  let banco=document.getElementById('bancoRetiro').value.trim();
-  if(!banco) return alert('Put your Zelle'); if(montoRetiro>saldoActual) return alert('Insufficient balance'); if(montoRetiro<15) return alert('Min $15');
-  document.getElementById('btnEnviarRetiro').innerText='⏳ Sending...';
-  let res=await fetch('/api/solicitar-retiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto:montoRetiro,banco_info:banco}),credentials:'include'});
-  let j=await res.json();
-  if(j.ok){ alert('✅ Request sent'); cerrarRetiro(); cargarMisRetiros(); }
-  else { alert(j.msg); document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - $ '+montoRetiro; }
-};
-async function cargarMisRetiros(){
-  let r=await fetch('/api/mis-retiros',{credentials:'include'}); let j=await r.json();
-  if(j.length==0){ document.getElementById('listaMisRetiros').innerHTML=''; document.getElementById('misRetirosTxt').innerText=''; return; }
-  document.getElementById('listaMisRetiros').innerHTML='<b>My withdrawals:</b><br>'+j.map(x=>`${x.fecha} $${x.monto} - ${x.estado}<br>`).join('');
-  let pend=j.filter(x=>x.estado=='pendiente'); if(pend.length>0) document.getElementById('misRetirosTxt').innerText='⏳ Pending withdrawal $'+pend[0].monto;
-}
-cargarMisRetiros();
-const partidaActual = cierre.getTime();
-const ultimaPartidaGuardada = localStorage.getItem('ultima_partida');
-fetch('/api/mis-apuestas-actuales',{credentials:'include'}).then(r=>r.json()).then(d=>{
- if(d.apuestas && Object.keys(d.apuestas).length>0){
-   let diffRestante = cierre - new Date();
-   if(ultimaPartidaGuardada && parseInt(ultimaPartidaGuardada)!== partidaActual){
-     localStorage.setItem('ultima_partida', partidaActual);
-     apuestas={}; misApuestasGuardadas={};
-     document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));
-     calc();
-     return;
-   }
-   if(diffRestante > 10000){
-     misApuestasGuardadas=d.apuestas;
-     for(let id in misApuestasGuardadas){
-       let card=document.querySelector(`.card[data-id="${id}"]`);
-       if(card) card.classList.add('selected');
-     }
-     calc();
-     mostrarSalaConteo();
-     localStorage.setItem('ultima_partida', partidaActual);
-   }
- }
-});
-</script>
-<a href="https://wa.me/56935491789?text=Hola%20Admin%2C%20soy%20de%20Loteria%20USA%20y%20necesito%20ayuda" target="_blank"
-style="position:fixed; bottom:20px; left:20px; background:#25D366; width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:9999; text-decoration:none;">
-  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M19.05 4.94A9.91 9.91 0 0 0 12.04 2C6.58 2 2.15 6.43 2.15 11.89c0 1.74.45 3.44 1.32 4.94L2 22l5.33-1.4a9.87 9.87 0 0 0 4.71 1.2h.01c5.46 0 9.9-4.43 9.9-9.89 0-2.64-1.03-5.13-2.9-7.97zM12.05 20.03a8.07 8.07 0 0 1-4.11-1.13l-.29-.17-3.16.83.84-3.08-.19-.32a8.09 8.09 0 0 1-1.25-4.27c0-4.48 3.65-8.13 8.15-8.13 2.17 0 4.21.85 5.75 2.39a8.07 8.07 0 0 1 2.38 5.74c0 4.48-3.65 8.14-8.12 8.14zm4.47-6.09c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12s-.62.78-.76.94-.28.18-.52.06c-.24-.12-1.01-.37-1.92-1.18-.71-.63-1.19-1.41-1.33-1.65-.14-.24-.01-.37.11-.49.1-.1.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.41-.54-.42h-.46c-.16 0-.42.06-.64.3s-.84.82-.84 2.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.57.18 1.09.16 1.5.1.46-.07 1.43-.58 1.63-1.15.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28z"/></svg>
-</a>
 </body>
 </html>
