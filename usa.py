@@ -168,7 +168,7 @@ def get_proximo_cierre_global():
 def init_db():
     con = db(); c = con.cursor()
     if is_postgres():
-        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo FLOAT DEFAULT 0, fecha_registro TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo FLOAT DEFAULT 0, fecha_registro TEXT, terminos_aceptados INTEGER DEFAULT 0, terminos_version TEXT DEFAULT '1.0', terminos_fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS animales (id INTEGER PRIMARY KEY, nombre TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS sorteos (id SERIAL PRIMARY KEY, fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT, seed TEXT, hash_verificacion TEXT, recaudacion FLOAT, fondo_premios FLOAT, margen_plataforma FLOAT, jackpot FLOAT, tiempo_min INTEGER DEFAULT 60)")
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto FLOAT, fecha TEXT)")
@@ -178,7 +178,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id SERIAL PRIMARY KEY, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
         c.execute("CREATE TABLE IF NOT EXISTS movimientos (id SERIAL PRIMARY KEY, user_id INTEGER, tipo TEXT, monto FLOAT, referencia TEXT, detalle TEXT, fecha TEXT)")
     else:
-        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo REAL DEFAULT 0, fecha_registro TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo REAL DEFAULT 0, fecha_registro TEXT, terminos_aceptados INTEGER DEFAULT 0, terminos_version TEXT DEFAULT '1.0', terminos_fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS animales (id INTEGER PRIMARY KEY, nombre TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS sorteos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT, seed TEXT, hash_verificacion TEXT, recaudacion REAL, fondo_premios REAL, margen_plataforma REAL, jackpot REAL, tiempo_min INTEGER DEFAULT 60)")
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto REAL, fecha TEXT)")
@@ -203,6 +203,27 @@ def init_db():
     print("BASE CREADA OK - POSTGRES" if is_postgres() else "BASE CREADA OK - SQLITE")
 
 init_db()
+
+# Migración para bases existentes: agrega el registro de aceptación de Términos.
+# Se ejecuta de forma segura tanto en SQLite como en PostgreSQL.
+try:
+    con = db(); c = con.cursor()
+    for sentencia in (
+        "ALTER TABLE usuarios ADD COLUMN terminos_aceptados INTEGER DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN terminos_version TEXT DEFAULT '1.0'",
+        "ALTER TABLE usuarios ADD COLUMN terminos_fecha TEXT"
+    ):
+        try:
+            c.execute(sentencia)
+        except Exception:
+            pass
+    con.commit(); con.close()
+except Exception as e:
+    try:
+        con.rollback(); con.close()
+    except Exception:
+        pass
+    print("ADVERTENCIA migración términos:", e)
 
 def get_config():
     try:
@@ -341,19 +362,23 @@ def login_page(): return render_template('login.html')
 @app.route('/api/register', methods=['POST'])
 def api_register():
     try:
-        d=request.json
+        d=request.json or {}
         email=str(d.get('email','')).strip().lower()
         password=str(d.get('password',''))
+        terminos_aceptados = bool(d.get('terminos_aceptados', False))
+        if not terminos_aceptados:
+            return jsonify({"ok":False,"msg":"Debes aceptar los Términos y Condiciones para registrarte."}),400
         if '@' not in email or len(email)>254: return jsonify({"ok":False,"msg":"Correo inválido"}),400
         if len(password)<8 or len(password)>128: return jsonify({"ok":False,"msg":"La contraseña debe tener entre 8 y 128 caracteres"}),400
         pw=hash_pass(password)
         tel=str(d.get('telefono',''))[:30]
+        ahora=datetime.now().isoformat()
         con=db(); c=con.cursor()
         if is_postgres():
-            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,NOW()) RETURNING id"), (email,pw,tel,0))
+            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro,terminos_aceptados,terminos_version,terminos_fecha) VALUES (?,?,?,?,NOW(),?,?,NOW()) RETURNING id"), (email,pw,tel,0,1,'1.0'))
             uid=c.fetchone()[0]
         else:
-            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro) VALUES (?,?,?,?,?)"), (email,pw,tel,0, datetime.now().isoformat()))
+            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro,terminos_aceptados,terminos_version,terminos_fecha) VALUES (?,?,?,?,?,?,?,?)"), (email,pw,tel,0,ahora,1,'1.0',ahora))
             uid=c.lastrowid
         con.commit()
         if is_postgres():
@@ -490,6 +515,8 @@ def recarga_bcp():
         monto=validar_monto(request.form.get('monto',0) or (request.json.get('monto',0) if request.is_json else 0), 100000)
     except ValueError as e:
         return jsonify({"ok":False,"msg":str(e)}),400
+    if monto < 10:
+        return jsonify({"ok":False,"msg":"La recarga mínima es de $10"}),400
     operacion=str(request.form.get('operacion','') or (request.json.get('operacion','') if request.is_json else ''))[:100]
     if not operacion:
         return jsonify({"ok":False,"msg":"Falta el número de operación"}),400
@@ -513,6 +540,8 @@ def solicitar_retiro():
     try:
         data=request.get_json() or {}
         monto=validar_monto(data.get("monto",0), 100000); yape=str(data.get("yape","")).strip()
+        if monto < 15:
+            return jsonify({"ok":False,"msg":"El retiro mínimo es de $15"}),400
         if len(yape)>100: return jsonify({"ok":False,"msg":"Dato de retiro demasiado largo"}),400
         if not yape: return jsonify({"ok":False,"msg":"Indica el número/cuenta de retiro"}),400
         con=db(); c=con.cursor()

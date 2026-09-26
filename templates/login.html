@@ -55,6 +55,16 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 .btn-blue{width:100%;background:#22ff88;color:#052e16;padding:13px;border:none;border-radius:12px;font-weight:900;margin-top:10px;cursor:pointer}
 .btn-gray{width:100%;background:rgba(255,255,255,.08);color:#cbd5e1;padding:11px;border:1px solid rgba(255,255,255,.1);border-radius:12px;margin-top:8px;cursor:pointer}
 .err{color:#ff6b6b;font-size:11px;margin-top:6px;display:none}
+.terms-check{display:flex;gap:9px;align-items:flex-start;margin:10px 0;color:#b7d9c8;font-size:11px;line-height:1.45}
+.terms-check input{width:16px;height:16px;accent-color:#22ff88;margin-top:1px;flex:none}
+.terms-check a{color:#22ff88;text-decoration:underline;cursor:pointer}
+.btn-blue:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.terms-modal .modal-box{max-width:520px;max-height:88vh;overflow:auto}
+.terms-text{color:#cfe8dc;font-size:11px;line-height:1.55;margin-top:10px}
+.terms-text h4{color:#22ff88;font-size:12px;margin:12px 0 5px}
+.terms-text p{margin:5px 0}
+.terms-text ul{padding-left:18px;margin:5px 0}
+
 .social-mini{display:flex;justify-content:center;gap:12px;margin-top:14px}
 .social-mini button{width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);cursor:pointer;display:flex;align-items:center;justify-content:center}
 </style>
@@ -102,18 +112,61 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 
 <!-- MODAL REGISTRO -->
 <div id="modal-registro" class="modal"><div class="modal-box">
-<h3>Crear cuenta nueva</h3><small>Datos quedan guardados - Saldo inicial S/0</small>
+<h3>Crear cuenta nueva</h3><small>Saldo inicial $0.00 • Solo mayores de 18 años</small>
 <input id="reg-email" type="email" placeholder="Correo electrónico *">
 <div class="pais-row">
-<select id="reg-pais"><option value="USA">🇺🇸 Estados Unidos<option><option value="Perú">🇵🇪 Perú</option><option value="Venezuela">🇻🇪 Venezuela</option><option value="Colombia">🇨🇴 Colombia</option><option value="Chile">🇨🇱 Chile</option><option value="Argentina">🇦🇷 Argentina</option><option value="México">🇲🇽 México</option><option value="España">🇪🇸 España</option><option value="Otro">🌎 Otro</option></select>
+<select id="reg-pais"><option value="USA">🇺🇸 Estados Unidos</option><option value="Perú">🇵🇪 Perú</option><option value="Venezuela">🇻🇪 Venezuela</option><option value="Colombia">🇨🇴 Colombia</option><option value="Chile">🇨🇱 Chile</option><option value="Argentina">🇦🇷 Argentina</option><option value="México">🇲🇽 México</option><option value="España">🇪🇸 España</option><option value="Otro">🌎 Otro</option></select>
 <select id="reg-codigo"><option>+1</option><option>+54</option><option>+52</option><option>+34</option><option>+51</option><option>+58</option><option>+57</option><option>+56</option></select>
 </div>
 <input id="reg-tel" type="tel" placeholder="Número de teléfono * Ej: 999 888 777">
 <input id="reg-pass" type="password" placeholder="Contraseña *">
 <input id="reg-pass2" type="password" placeholder="Verificar contraseña *">
+
+<label class="terms-check">
+<input id="reg-18" type="checkbox">
+<span>Confirmo que soy <b>mayor de 18 años</b>.</span>
+</label>
+<label class="terms-check">
+<input id="reg-terms" type="checkbox" onchange="actualizarBotonRegistro()">
+<span>He leído y acepto los <a onclick="abrirTerminos()">Términos y Condiciones</a> y la Política de Privacidad.</span>
+</label>
+
 <p id="reg-err" class="err"></p>
-<button class="btn-blue" onclick="registrar()">Crear cuenta y entrar a la sala</button>
+<button id="btn-crear-cuenta" class="btn-blue" onclick="registrar()" disabled>Crear cuenta y entrar a la sala</button>
 <button class="btn-gray" onclick="closeModals()">Cancelar</button>
+</div></div>
+
+<!-- MODAL TERMINOS -->
+<div id="modal-terminos" class="modal terms-modal"><div class="modal-box">
+<h3>Términos y Condiciones de Uso</h3>
+<small>Globallotery • Versión 1.0</small>
+<div class="terms-text">
+<p><b>Al registrarte y utilizar Globallotery, aceptas estos Términos y Condiciones.</b></p>
+<h4>1. Edad mínima</h4>
+<p>El uso de la plataforma está reservado exclusivamente a personas de <b>18 años o más</b>. El usuario declara que cumple esta condición y que los datos entregados son verdaderos.</p>
+<h4>2. Registro y cuenta</h4>
+<p>La información de registro debe ser correcta y mantenerse actualizada. La cuenta es personal y no debe utilizarse para actividades fraudulentas o abusivas.</p>
+<h4>3. Recargas</h4>
+<p>La <b>recarga mínima es de $10</b>. Las recargas pueden permanecer pendientes hasta su verificación. Globallotery podrá rechazar comprobantes inválidos, ilegibles, manipulados, duplicados o considerados sospechosos.</p>
+<h4>4. Apuestas y sorteos</h4>
+<p>Las apuestas requieren saldo suficiente. Una apuesta confirmada no podrá modificarse después del registro o cierre correspondiente. Los resultados de los sorteos serán registrados por la plataforma y podrán notificarse por correo electrónico.</p>
+<h4>5. Retiros</h4>
+<p>El <b>retiro mínimo es de $15</b>. Las solicitudes quedan sujetas a revisión y verificación. Podrá solicitarse información adicional antes de procesar un retiro.</p>
+<h4>6. Pagos y seguridad</h4>
+<p>El usuario debe utilizar medios de pago que le pertenezcan o cuyo uso esté autorizado. Se prohíben el fraude, comprobantes falsificados, manipulación del sistema y cualquier intento de obtener beneficios mediante engaño.</p>
+<h4>7. Suspensión</h4>
+<p>La cuenta podrá ser suspendida o cerrada cuando existan indicios de fraude, problemas de seguridad o incumplimiento de estos términos.</p>
+<h4>8. Juego responsable</h4>
+<p>Las apuestas implican riesgo de pérdida económica. Utiliza únicamente dinero que puedas permitirte perder. Si lo necesitas, puedes solicitar la suspensión o cierre de tu cuenta.</p>
+<h4>9. Comunicaciones</h4>
+<p>La plataforma podrá enviar comunicaciones relacionadas con registro, apuestas, resultados, recargas, retiros y seguridad de la cuenta.</p>
+<h4>10. Datos personales</h4>
+<p>Los datos personales serán tratados conforme a la normativa aplicable y a la Política de Privacidad de la plataforma.</p>
+<h4>11. Modificaciones</h4>
+<p>Estos términos pueden actualizarse cuando sea necesario. La versión aplicable será la que se muestre al momento de la aceptación.</p>
+<p>Al marcar las casillas de registro, confirmas que eres mayor de 18 años, que has leído y comprendido estos términos y que aceptas sus disposiciones.</p>
+</div>
+<button class="btn-blue" onclick="cerrarTerminos()">Cerrar</button>
 </div></div>
 
 <!-- MODAL FORGOT -->
@@ -127,7 +180,10 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 
 <script>
 const $=id=>document.getElementById(id);
-function closeModals(){ $('modal-registro').style.display='none'; $('modal-forgot').style.display='none'; }
+function closeModals(){ $('modal-registro').style.display='none'; $('modal-forgot').style.display='none'; $('modal-terminos').style.display='none'; }
+function abrirTerminos(){ $('modal-terminos').style.display='flex'; }
+function cerrarTerminos(){ $('modal-terminos').style.display='none'; }
+function actualizarBotonRegistro(){ $('btn-crear-cuenta').disabled=!($('reg-18').checked && $('reg-terms').checked); }
 $('btn-register').onclick=()=>$('modal-registro').style.display='flex';
 $('btn-forgot').onclick=()=>$('modal-forgot').style.display='flex';
 window.onclick=e=>{ if(e.target.classList.contains('modal')) closeModals(); };
@@ -141,10 +197,14 @@ function registrar(){
  let email=$('reg-email').value.trim(), pais=$('reg-pais').value, cod=$('reg-codigo').value, tel=$('reg-tel').value.trim(), p1=$('reg-pass').value, p2=$('reg-pass2').value, err=$('reg-err');
  err.style.display='none';
  if(!email||!tel||!p1||!p2){ err.innerText='Completa todos los campos *'; err.style.display='block'; return; }
+ if(!$('reg-18').checked){ err.innerText='Debes confirmar que eres mayor de 18 años.'; err.style.display='block'; return; }
+ if(!$('reg-terms').checked){ err.innerText='Debes aceptar los Términos y Condiciones.'; err.style.display='block'; return; }
  if(p1!==p2){ err.innerText='Las claves no coinciden - verifica'; err.style.display='block'; return; }
  if(p1.length<6){ err.innerText='Clave mínimo 6 caracteres'; err.style.display='block'; return; }
  let telefono = cod+' '+tel;
- fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:p1,telefono:telefono,pais:pais})}).then(r=>r.json()).then(d=>{ if(d.ok){ alert('Cuenta creada con S/0.00'); location.href='/'; } else { err.innerText=d.msg; err.style.display='block'; } });
+ fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+   email:email,password:p1,telefono:telefono,pais:pais,terminos_aceptados:true
+ })}).then(r=>r.json()).then(d=>{ if(d.ok){ alert('Cuenta creada con $0.00'); location.href='/'; } else { err.innerText=d.msg||'No se pudo crear la cuenta'; err.style.display='block'; } });
 }
 function enviarRecup(){
  let e=$('forgot-email').value.trim(), m=$('forgot-metodo').value;
