@@ -18,7 +18,7 @@ body{background:#0a0a0a;color:#fff;font-family:Arial, sans-serif}
 @media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
 .animal{background:#1a1a1a;border:2px solid #333;border-radius:12px;padding:10px;text-align:center;cursor:pointer}
 .animal.selected{border-color:#1ee66d;background:#122b1a}
-.animal .emoji{font-size:32px}
+.animal.emoji{font-size:32px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;padding:15px}
 .modal.active{display:flex}
 .modal-box{background:#1a1a1a;border:1px solid #333;border-radius:15px;padding:20px;width:100%;max-width:400px}
@@ -78,119 +78,34 @@ input,select{width:100%;padding:12px;margin:8px 0;border-radius:8px;border:1px s
     <button class="btn" style="width:100%;margin-top:8px;background:#333;color:#fff" onclick="cerrarModals()">Cerrar</button>
     <div id="msgRecarga" style="margin-top:10px"></div>
   </div>
-</div><script>
-let apuestas = {}
-let saldoActual = 0
-
-function abrirLogin(){document.getElementById('modalLogin').classList.add('active')}
-function abrirRecarga(){document.getElementById('modalRecarga').classList.add('active')}
-function cerrarModals(){document.querySelectorAll('.modal').forEach(m=>m.classList.remove('active'))}
-
-async function cargarAnimales(){
-  const r = await fetch('/api/animales',{credentials:'include'})
-  const data = await r.json()
-  const grid = document.getElementById('gridAnimales')
-  grid.innerHTML=''
-  data.forEach(a=>{
-    const div=document.createElement('div')
-    div.className='animal'
-    div.innerHTML=`<div class="emoji">🦁</div><div>${a.nombre}</div><div style="margin-top:5px"><input type="number" min="1" placeholder="$" style="width:70px;margin:0" onclick="event.stopPropagation()" id="m_${a.id}"></div>`
-    div.onclick=()=>{
-      const m=parseInt(document.getElementById(`m_${a.id}`).value||0)
-      if(m>0){
-        apuestas[a.id]=m
-        div.classList.add('selected')
-        actualizarLista()
-      }else{
-        delete apuestas[a.id]
-        div.classList.remove('selected')
-        actualizarLista()
-      }
-    }
-    grid.appendChild(div)
-  })
-}
-
-function actualizarLista(){
-  let total=0
-  let txt=[]
-  for(let id in apuestas){total+=apuestas[id]; txt.push(`Animal ${id}: $${apuestas[id]}`)}
-  document.getElementById('totalApuesta').innerText=total
-  document.getElementById('listaApuesta').innerText= txt.length? txt.join(' | ') : 'Ningún animal seleccionado'
-}
-
-async function cargarSaldo(){
-  const r=await fetch('/api/saldo',{credentials:'include'})
-  const d=await r.json()
-  saldoActual=d.saldo||0
-  document.getElementById('saldo').innerText=saldoActual
-  if(saldoActual>0){
-    document.getElementById('btnLogin').style.display='none'
-    document.getElementById('btnLogout').style.display='block'
-  }
-}
-
-async function cargarSorteo(){
-  const r=await fetch('/api/sorteo-actual',{credentials:'include'})
-  const d=await r.json()
-  document.getElementById('sorteoId').innerText=d.id||0
-  document.getElementById('estado').innerText=d.estado||''
-}
-
-async function login(){
-  const email=document.getElementById('email').value
-  const password=document.getElementById('password').value
-  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password})})
-  const d=await r.json()
-  if(d.ok){cerrarModals(); cargarSaldo(); alert('Logueado')}else{document.getElementById('msgLogin').innerText=d.msg}
-}
-
-async function register(){
-  const email=document.getElementById('email').value
-  const password=document.getElementById('password').value
-  const telefono=document.getElementById('telefono').value
-  const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password,telefono})})
-  const d=await r.json()
-  if(d.ok){cerrarModals(); cargarSaldo(); alert('Registrado')}else{document.getElementById('msgLogin').innerText=d.msg}
-}
-
-async function logout(){
-  await fetch('/api/logout',{method:'POST',credentials:'include'})
-  location.reload()
-}
-
-async function apostar(){
-  if(Object.keys(apuestas).length==0){alert('Selecciona animales');return}
-  const r=await fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({apuestas})})
-  const d=await r.json()
-  if(d.ok){alert('Apuesta enviada'); apuestas={}; actualizarLista(); cargarSaldo()}else{alert(d.msg)}
-}
-
-// ESTA ES LA FUNCIÓN QUE TE DABA NO LOGUEADO - YA ESTÁ ARREGLADA
-async function enviarRecarga(){
-  const fd=new FormData()
-  fd.append('monto',document.getElementById('r_monto').value)
-  fd.append('operacion',document.getElementById('r_oper').value)
-  fd.append('titular',document.getElementById('r_titular').value)
-  fd.append('fecha_op',document.getElementById('r_fecha').value)
-  const file=document.getElementById('r_voucher').files[0]
-  if(file) fd.append('voucher',file)
-
-  document.getElementById('msgRecarga').innerText='Enviando...'
-  const r=await fetch('/api/recarga-bcp',{method:'POST',body:fd,credentials:'include'})
-  const d=await r.json()
-  if(d.ok){
-    document.getElementById('msgRecarga').style.color='#1ee66d'
-    document.getElementById('msgRecarga').innerText='✅ '+d.msg
-  }else{
-    document.getElementById('msgRecarga').style.color='#ff6b6b'
-    document.getElementById('msgRecarga').innerText='❌ '+d.msg
-  }
-}
-
-cargarAnimales(); cargarSaldo(); cargarSorteo();
-setInterval(cargarSorteo, 10000);
-setInterval(cargarSaldo, 5000);
-</script>
-</body>
-</html>
+</div>
+@app.route('/api/recarga-bcp', methods=['POST'])
+def recarga_bcp():
+    uid = session.get('user')
+    if not uid:
+        email_fallback = request.form.get('email_fallback','').strip().lower()
+        if email_fallback:
+            con2=db(); c2=con2.cursor()
+            c2.execute(q("SELECT id FROM usuarios WHERE email=?"), (email_fallback,))
+            row=c2.fetchone()
+            con2.close()
+            if row:
+                uid=row[0]
+    if not uid:
+        return jsonify({"ok":False,"msg":"No logueado - inicia sesión de nuevo"})
+    monto=request.form.get('monto'); oper=request.form.get('operacion')
+    titular=request.form.get('titular',''); fecha_op=request.form.get('fecha_op','')
+    file=request.files.get('voucher'); path=""
+    if file:
+        fname=secure_filename(file.filename)
+        os.makedirs('static/vouchers', exist_ok=True)
+        path=f"static/vouchers/{uuid.uuid4()}_{fname}"
+        file.save(path)
+    try:
+        monto_int=int(float(monto))
+    except:
+        monto_int=0
+    con=db(); c=con.cursor()
+    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,numero_operacion,fecha_operacion,titular,voucher_path,estado,fecha) VALUES (?,?,?,?,?,?,?,?)"), (uid, monto_int, oper, fecha_op, titular, path, 'pendiente', datetime.now().isoformat()))
+    con.commit(); con.close()
+    return jsonify({"ok":True,"msg":"Recarga enviada"})
