@@ -18,6 +18,52 @@ MI_CCI_BCP = "00219110686421905358"
 MI_LINK_IZIPAY = "https://izipayya.page.link/TU_LINK_AQUI"
 MI_NOMBRE_BCP = "Globallotery"
 
+# ========================= MULTIMONEDA =========================
+# El saldo interno de la base se mantiene en USD. La interfaz y las
+# apuestas se muestran/reciben en la moneda local del jugador.
+# Las tasas son unidades de moneda local por 1 USD y deben actualizarse
+# periódicamente (o mediante FX_RATES_JSON en Render).
+COUNTRY_CONFIG = {
+    "USA": {"name":"Estados Unidos","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[5,10,20,50],"bet_min":5,"deposit_min":20,"withdraw_min_usd":15},
+    "Perú": {"name":"Perú","currency":"PEN","symbol":"S/","decimals":2,"units_per_usd":3.3983,"bet_levels":[1,2,5,10,20],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
+    "Chile": {"name":"Chile","currency":"CLP","symbol":"$","decimals":0,"units_per_usd":975.27,"bet_levels":[500,1000,2000,5000,10000,20000],"bet_min":500,"deposit_min":5000,"withdraw_min_usd":15},
+    "Colombia": {"name":"Colombia","currency":"COP","symbol":"$","decimals":0,"units_per_usd":3349.63,"bet_levels":[2000,5000,10000,20000,50000],"bet_min":2000,"deposit_min":20000,"withdraw_min_usd":15},
+    "México": {"name":"México","currency":"MXN","symbol":"$","decimals":2,"units_per_usd":18.5,"bet_levels":[10,20,50,100,200],"bet_min":10,"deposit_min":100,"withdraw_min_usd":15},
+    "Ecuador": {"name":"Ecuador","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[1,2,5,10],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
+    "Argentina": {"name":"Argentina","currency":"ARS","symbol":"$","decimals":2,"units_per_usd":1450.0,"bet_levels":[500,1000,2500,5000],"bet_min":500,"deposit_min":10000,"withdraw_min_usd":15},
+    "Bolivia": {"name":"Bolivia","currency":"BOB","symbol":"Bs","decimals":2,"units_per_usd":6.96,"bet_levels":[5,10,20,50],"bet_min":5,"deposit_min":35,"withdraw_min_usd":15}
+}
+
+try:
+    _fx_env = json.loads(os.environ.get("FX_RATES_JSON", "{}") or "{}")
+    for _country, _rate in _fx_env.items():
+        if _country in COUNTRY_CONFIG and float(_rate) > 0:
+            COUNTRY_CONFIG[_country]["units_per_usd"] = float(_rate)
+except Exception:
+    pass
+
+PREMIO_MULTIPLICADOR = 25
+
+def get_country_config(country):
+    return COUNTRY_CONFIG.get(country, COUNTRY_CONFIG["USA"])
+
+def local_to_usd(amount_local, config):
+    return float(amount_local) / float(config["units_per_usd"])
+
+def usd_to_local(amount_usd, config):
+    return float(amount_usd) * float(config["units_per_usd"])
+
+def format_local(amount, config):
+    decimals = int(config.get("decimals", 2))
+    return f'{config["symbol"]}{amount:,.{decimals}f}'
+
+def round_local_amount(amount, config):
+    decimals = int(config.get("decimals", 2))
+    if decimals == 0:
+        return int(round(amount))
+    return round(float(amount), decimals)
+
+
 # ========================= CORREO =========================
 # En Render Free usamos Brevo mediante HTTPS.
 # NO usamos SMTP porque Render Free bloquea los puertos SMTP 25/465/587.
@@ -168,7 +214,7 @@ def get_proximo_cierre_global():
 def init_db():
     con = db(); c = con.cursor()
     if is_postgres():
-        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo FLOAT DEFAULT 0, fecha_registro TEXT, terminos_aceptados INTEGER DEFAULT 0, terminos_version TEXT DEFAULT '1.0', terminos_fecha TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo FLOAT DEFAULT 0, fecha_registro TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS animales (id INTEGER PRIMARY KEY, nombre TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS sorteos (id SERIAL PRIMARY KEY, fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT, seed TEXT, hash_verificacion TEXT, recaudacion FLOAT, fondo_premios FLOAT, margen_plataforma FLOAT, jackpot FLOAT, tiempo_min INTEGER DEFAULT 60)")
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto FLOAT, fecha TEXT)")
@@ -178,7 +224,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id SERIAL PRIMARY KEY, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
         c.execute("CREATE TABLE IF NOT EXISTS movimientos (id SERIAL PRIMARY KEY, user_id INTEGER, tipo TEXT, monto FLOAT, referencia TEXT, detalle TEXT, fecha TEXT)")
     else:
-        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo REAL DEFAULT 0, fecha_registro TEXT, terminos_aceptados INTEGER DEFAULT 0, terminos_version TEXT DEFAULT '1.0', terminos_fecha TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password TEXT, telefono TEXT, saldo REAL DEFAULT 0, fecha_registro TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS animales (id INTEGER PRIMARY KEY, nombre TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS sorteos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT, seed TEXT, hash_verificacion TEXT, recaudacion REAL, fondo_premios REAL, margen_plataforma REAL, jackpot REAL, tiempo_min INTEGER DEFAULT 60)")
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto REAL, fecha TEXT)")
@@ -187,6 +233,33 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
         c.execute("CREATE TABLE IF NOT EXISTS movimientos (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, tipo TEXT, monto REAL, referencia TEXT, detalle TEXT, fecha TEXT)")
+
+    # Migraciones para instalaciones existentes.
+    migrations = [
+        ("usuarios", "pais", "TEXT DEFAULT 'USA'"),
+        ("usuarios", "moneda", "TEXT DEFAULT 'USD'"),
+        ("usuarios", "terminos_aceptados", "INTEGER DEFAULT 0"),
+        ("usuarios", "terminos_version", "TEXT DEFAULT '1.0'"),
+        ("usuarios", "terminos_fecha", "TEXT"),
+        ("apuestas", "monto_local", "REAL"),
+        ("apuestas", "moneda", "TEXT"),
+        ("apuestas", "fx_units_per_usd", "REAL"),
+        ("recargas_bcp", "monto_local", "REAL"),
+        ("recargas_bcp", "moneda", "TEXT"),
+        ("recargas_bcp", "fx_units_per_usd", "REAL"),
+        ("retiros", "monto_local", "REAL"),
+        ("retiros", "moneda", "TEXT"),
+        ("retiros", "fx_units_per_usd", "REAL")
+    ]
+    for table, col, definition in migrations:
+        try:
+            if is_postgres():
+                c.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {definition}")
+            else:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
+
     c.execute("SELECT COUNT(*) FROM animales")
     if c.fetchone()[0]==0:
         noms=["Perro","Gato","Ratón","Conejo","Zorro","Tigre","León","Elefante","Mono","Gallina","Gallo","Cerdo","Vaca","Caballo","Alpaca","Vicuña","Cóndor","Oso","Puma","Gallito","Caimán","Serpiente","Rana","Delfin","Guacamayo"]
@@ -203,27 +276,6 @@ def init_db():
     print("BASE CREADA OK - POSTGRES" if is_postgres() else "BASE CREADA OK - SQLITE")
 
 init_db()
-
-# Migración para bases existentes: agrega el registro de aceptación de Términos.
-# Se ejecuta de forma segura tanto en SQLite como en PostgreSQL.
-try:
-    con = db(); c = con.cursor()
-    for sentencia in (
-        "ALTER TABLE usuarios ADD COLUMN terminos_aceptados INTEGER DEFAULT 0",
-        "ALTER TABLE usuarios ADD COLUMN terminos_version TEXT DEFAULT '1.0'",
-        "ALTER TABLE usuarios ADD COLUMN terminos_fecha TEXT"
-    ):
-        try:
-            c.execute(sentencia)
-        except Exception:
-            pass
-    con.commit(); con.close()
-except Exception as e:
-    try:
-        con.rollback(); con.close()
-    except Exception:
-        pass
-    print("ADVERTENCIA migración términos:", e)
 
 def get_config():
     try:
@@ -277,7 +329,7 @@ def sortear():
 
         c.execute(q("SELECT COUNT(*),COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=?"),(sid,))
         tot,recaud=c.fetchone(); recaud=float(recaud or 0)
-        fondo=int(recaud*0.75); margen=int(recaud*0.25)
+        fondo=float(recaud*0.75); margen=float(recaud*0.25)
 
         if tot and tot>=1:
             seed_raw=f"{sid}-{datetime.now().isoformat()}-{secrets.token_hex(16)}"
@@ -289,43 +341,42 @@ def sortear():
             c.execute(q("SELECT nombre FROM animales WHERE id=?"),(ganador,))
             animal_ganador=c.fetchone()[0]
 
+            # Regla de la app: cada apuesta que acierta paga x25.
             c.execute(q("SELECT usuario_id,SUM(monto) FROM apuestas WHERE sorteo_id=? AND animal_id=? GROUP BY usuario_id"),(sid,ganador))
             ganadores=c.fetchall()
-            total_gan=sum(float(x[1]) for x in ganadores) or 1
-
-            premios=[]; acumulado=0
-            for uid,apostado in ganadores:
-                premio=int(fondo*(float(apostado)/total_gan))
-                premios.append([uid,premio]); acumulado += premio
-            # El sobrante por redondeo se entrega al primer ganador para que el fondo se cuadre exactamente.
-            if premios and acumulado < fondo:
-                premios[0][1] += fondo-acumulado
+            premios=[]
+            for uid,apostado_usd in ganadores:
+                premio=float(apostado_usd or 0) * PREMIO_MULTIPLICADOR
+                premios.append([uid,premio])
             for uid,premio in premios:
                 c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"),(premio,uid))
-                registrar_movimiento(c, uid, 'PREMIO', premio, f'sorteo:{sid}', f'Premio por acertar {animal_ganador}')
+                registrar_movimiento(c, uid, 'PREMIO', premio, f'sorteo:{sid}', f'Premio x{PREMIO_MULTIPLICADOR} por acertar {animal_ganador}')
             if ganadores:
                 c.execute(q("UPDATE sorteos SET estado='PAGADO' WHERE id=?"),(sid,))
             else:
                 c.execute(q("UPDATE sorteos SET jackpot=?,estado='FINALIZADO' WHERE id=?"),(fondo,sid))
             con.commit()
 
-            c.execute(q("SELECT DISTINCT a.usuario_id,u.email FROM apuestas a JOIN usuarios u ON u.id=a.usuario_id WHERE a.sorteo_id=?"),(sid,))
+            c.execute(q("SELECT DISTINCT a.usuario_id,u.email,u.pais,u.moneda FROM apuestas a JOIN usuarios u ON u.id=a.usuario_id WHERE a.sorteo_id=?"),(sid,))
             participantes=c.fetchall()
-            for uid,email in participantes:
+            for uid,email,pais,moneda in participantes:
+                cfg=get_country_config(pais)
                 c.execute(q("""
-                    SELECT an.nombre,SUM(a.monto) FROM apuestas a JOIN animales an ON an.id=a.animal_id
+                    SELECT an.nombre,SUM(a.monto),SUM(COALESCE(a.monto_local,0)) FROM apuestas a JOIN animales an ON an.id=a.animal_id
                     WHERE a.sorteo_id=? AND a.usuario_id=? GROUP BY an.id,an.nombre ORDER BY an.id
                 """),(sid,uid))
-                seleccion="\n".join(f"- {x[0]}: S/{int(float(x[1]))}" for x in c.fetchall())
+                seleccion="\n".join(format_local(float(x[2] or usd_to_local(x[1],cfg)),cfg)+" - "+x[0] for x in c.fetchall())
                 c.execute(q("SELECT COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=? AND usuario_id=? AND animal_id=?"),
                           (sid,uid,ganador))
-                acierto=float(c.fetchone()[0] or 0)
+                acierto_usd=float(c.fetchone()[0] or 0)
 
-                if acierto>0:
-                    premio=int(fondo*(acierto/total_gan))
+                if acierto_usd>0:
+                    premio_usd=acierto_usd*PREMIO_MULTIPLICADOR
                     c.execute(q("SELECT saldo FROM usuarios WHERE id=?"),(uid,))
-                    saldo_actual=c.fetchone()[0]
-                    mensaje=f"¡Felicidades! Acertaste.\nPremio acreditado: S/{premio}\nSaldo actual: S/{saldo_actual}"
+                    saldo_actual_usd=float(c.fetchone()[0] or 0)
+                    premio_local=usd_to_local(premio_usd,cfg)
+                    saldo_local=usd_to_local(saldo_actual_usd,cfg)
+                    mensaje=f"¡Felicidades! Acertaste.\nPremio acreditado: {format_local(premio_local,cfg)}\nSaldo actual: {format_local(saldo_local,cfg)}"
                 else:
                     mensaje="En este sorteo no acertaste el animal ganador."
 
@@ -333,7 +384,7 @@ def sortear():
                     enviar_correo_async(
                         email,f"Resultado del sorteo #{sid}: {animal_ganador}",
                         f"Hola,\n\nEl sorteo #{sid} terminó.\n\n"
-                        f"Tus animales elegidos:\n{seleccion}\n\n"
+                        f"Tus animales elegidos ({cfg['currency']}):\n{seleccion}\n\n"
                         f"ANIMAL GANADOR: {animal_ganador}\n\n{mensaje}\n\n"
                         "Gracias por participar en Globallotery."
                     )
@@ -365,28 +416,26 @@ def api_register():
         d=request.json or {}
         email=str(d.get('email','')).strip().lower()
         password=str(d.get('password',''))
-        terminos_aceptados = bool(d.get('terminos_aceptados', False))
-        if not terminos_aceptados:
-            return jsonify({"ok":False,"msg":"Debes aceptar los Términos y Condiciones para registrarte."}),400
+        pais=str(d.get('pais','USA')).strip()
+        if pais not in COUNTRY_CONFIG: pais='USA'
+        cfg=get_country_config(pais)
         if '@' not in email or len(email)>254: return jsonify({"ok":False,"msg":"Correo inválido"}),400
         if len(password)<8 or len(password)>128: return jsonify({"ok":False,"msg":"La contraseña debe tener entre 8 y 128 caracteres"}),400
-        pw=hash_pass(password)
-        tel=str(d.get('telefono',''))[:30]
-        ahora=datetime.now().isoformat()
-        con=db(); c=con.cursor()
+        if not bool(d.get('terminos_aceptados',False)):
+            return jsonify({"ok":False,"msg":"Debes aceptar los Términos y Condiciones para registrarte."}),400
+        pw=hash_pass(password); tel=str(d.get('telefono',''))[:30]
+        con=db(); c=con.cursor(); ahora=datetime.now().isoformat()
         if is_postgres():
-            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro,terminos_aceptados,terminos_version,terminos_fecha) VALUES (?,?,?,?,NOW(),?,?,NOW()) RETURNING id"), (email,pw,tel,0,1,'1.0'))
+            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro,pais,moneda,terminos_aceptados,terminos_version,terminos_fecha) VALUES (?,?,?,?,NOW(),?,?,?,?,?) RETURNING id"),
+                      (email,pw,tel,0,pais,cfg['currency'],1,'1.0',ahora))
             uid=c.fetchone()[0]
         else:
-            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro,terminos_aceptados,terminos_version,terminos_fecha) VALUES (?,?,?,?,?,?,?,?)"), (email,pw,tel,0,ahora,1,'1.0',ahora))
+            c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro,pais,moneda,terminos_aceptados,terminos_version,terminos_fecha) VALUES (?,?,?,?,?,?,?,?,?,?)"),
+                      (email,pw,tel,0,ahora,pais,cfg['currency'],1,'1.0',ahora))
             uid=c.lastrowid
-        con.commit()
-        if is_postgres():
-            c.execute(q("SELECT id FROM usuarios WHERE email=?"), (email,))
-            uid=c.fetchone()[0]
-        con.close()
+        con.commit(); con.close()
         session['user']=uid; session['email']=email
-        return jsonify({"ok":True})
+        return jsonify({"ok":True,"pais":pais,"moneda":cfg['currency']})
     except Exception as e:
         print("ERROR REGISTER:", e)
         return jsonify({"ok":False,"msg": "Correo ya registrado" if "UNIQUE" in str(e) or "duplicate" in str(e).lower() else "Error: "+str(e)})
@@ -395,17 +444,19 @@ def api_register():
 def api_login():
     d=request.json or {}; email=str(d.get('email','')).strip().lower(); password=str(d.get('password',''))
     con=db(); c=con.cursor()
-    c.execute(q("SELECT id,email,saldo,password FROM usuarios WHERE email=?"), (email,))
+    c.execute(q("SELECT id,email,saldo,password,pais,moneda FROM usuarios WHERE email=?"), (email,))
     row=c.fetchone()
     if not row:
         con.close(); return jsonify({"ok":False,"msg":"Credenciales incorrectas"})
     if not verificar_password(password, row[3]):
         con.close(); return jsonify({"ok":False,"msg":"Credenciales incorrectas"})
-    # Migra silenciosamente contraseñas antiguas SHA-256 a scrypt.
     if not str(row[3]).startswith(('scrypt:','pbkdf2:')):
         c.execute(q("UPDATE usuarios SET password=? WHERE id=?"),(hash_pass(password),row[0])); con.commit()
+    pais=row[4] if row[4] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
+    if not row[5]:
+        c.execute(q("UPDATE usuarios SET pais=?,moneda=? WHERE id=?"),(pais,cfg['currency'],row[0])); con.commit()
     con.close(); session.clear(); session['user']=row[0]; session['email']=row[1]
-    return jsonify({"ok":True, "saldo": row[2]})
+    return jsonify({"ok":True, "saldo": row[2], "pais":pais, "moneda":cfg['currency']})
 
 @app.route('/logout')
 def logout(): session.clear(); return redirect('/login')
@@ -419,11 +470,21 @@ def player():
         proximo = get_proximo_cierre_global()
         c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado) VALUES (?, 'ABIERTO')"),(proximo.isoformat(),)); con.commit()
         c.execute(q("SELECT * FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); s=c.fetchone()
-    c.execute(q("SELECT saldo,email FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
+    c.execute(q("SELECT saldo,email,pais,moneda FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
     c.execute(q("SELECT * FROM animales")); anims=c.fetchall()
     c.execute(q("SELECT fecha_hora_cierre, animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') ORDER BY id DESC LIMIT 24")); historial=c.fetchall()
     con.close()
-    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=u[0] if u else 0, email=u[1] if u else '', bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
+    pais=u[2] if u and u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
+    saldo_usd=float(u[0] or 0) if u else 0
+    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
+
+@app.route('/api/configuracion-juego')
+def api_configuracion_juego():
+    if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
+    con=db(); c=con.cursor(); c.execute(q("SELECT pais FROM usuarios WHERE id=?"),(session['user'],)); r=c.fetchone(); con.close()
+    pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
+    out=dict(cfg); out.update({"pais":pais,"premio_multiplicador":PREMIO_MULTIPLICADOR})
+    return jsonify({"ok":True,"config":out})
 
 @app.route('/api/apostar-multiple', methods=['POST'])
 def apostar_multiple():
@@ -433,134 +494,92 @@ def apostar_multiple():
     con=None
     try:
         data=(request.json or {}).get('apuestas',{})
-        if not isinstance(data,dict) or not data:
-            return jsonify({"ok":False,"msg":"Debes elegir al menos un animal"}),400
-        apuestas={}
-        for animal_id,monto in data.items():
-            animal_id=int(animal_id); monto=validar_monto(monto, 10000)
-            if animal_id<1 or animal_id>25:
-                return jsonify({"ok":False,"msg":"Animal inválido"}),400
-            apuestas[animal_id]=monto
-
-        uid=session['user']; total=sum(apuestas.values())
+        if not isinstance(data,dict) or not data: return jsonify({"ok":False,"msg":"Debes elegir al menos un animal"}),400
         con=db(); c=con.cursor()
-        c.execute(q("SELECT saldo,email FROM usuarios WHERE id=?"),(uid,))
-        u=c.fetchone()
+        c.execute(q("SELECT saldo,email,pais FROM usuarios WHERE id=?"),(session['user'],)); u=c.fetchone()
         if not u: con.close(); return jsonify({"ok":False,"msg":"Usuario no encontrado"}),404
-        if float(u[0])<total:
-            con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente S/{u[0]}"}),400
+        pais=u[2] if u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
+        apuestas={}; total_usd=0; nombres=[]
+        niveles={round(float(x),2):x for x in cfg['bet_levels']}
+        for animal_id,monto in data.items():
+            animal_id=int(animal_id); monto_local=float(monto)
+            if animal_id<1 or animal_id>25: return jsonify({"ok":False,"msg":"Animal inválido"}),400
+            if round(monto_local,2) not in niveles:
+                return jsonify({"ok":False,"msg":f"Monto no permitido. Usa: {', '.join(format_local(x,cfg) for x in cfg['bet_levels'])}"}),400
+            monto_usd=local_to_usd(monto_local,cfg); apuestas[animal_id]=(monto_local,monto_usd); total_usd+=monto_usd
 
-        c.execute(q("SELECT id,fecha_hora_cierre FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
-        row=c.fetchone()
+        if float(u[0] or 0)<total_usd:
+            con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente. Disponible: {format_local(usd_to_local(float(u[0] or 0),cfg),cfg)}"}),400
+        c.execute(q("SELECT id,fecha_hora_cierre FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); row=c.fetchone()
         if not row: con.close(); return jsonify({"ok":False,"msg":"No hay un sorteo abierto"}),400
-        sid, cierre=row
+        sid,cierre=row
         try:
-            if cierre and datetime.fromisoformat(str(cierre)) <= datetime.now():
-                con.close(); return jsonify({"ok":False,"msg":"El sorteo ya cerró"}),400
+            if cierre and datetime.fromisoformat(str(cierre)) <= datetime.now(): con.close(); return jsonify({"ok":False,"msg":"El sorteo ya cerró"}),400
         except Exception: pass
-        # Reserva el saldo dentro de la misma transacción para evitar dobles gastos por solicitudes simultáneas.
-        c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=? AND saldo>=?"),(total,uid,total))
+        c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=? AND saldo>=?"),(total_usd,session['user'],total_usd))
         if c.rowcount != 1:
             con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Saldo insuficiente"}),400
-        nombres=[]
-
-        for animal_id,monto in apuestas.items():
-            c.execute(q("SELECT nombre FROM animales WHERE id=?"),(animal_id,))
-            animal=c.fetchone()
+        for animal_id,(monto_local,monto_usd) in apuestas.items():
+            c.execute(q("SELECT nombre FROM animales WHERE id=?"),(animal_id,)); animal=c.fetchone()
             if not animal: raise ValueError("Animal inválido")
-            nombres.append(f"- {animal[0]}: ${monto}")
-            c.execute(q("INSERT INTO apuestas (id,sorteo_id,usuario_id,animal_id,monto,fecha) VALUES (?,?,?,?,?,?)"),
-                      (str(uuid.uuid4()),sid,uid,animal_id,monto,datetime.now().isoformat()))
-
-        registrar_movimiento(c, uid, 'APUESTA', -total, f'sorteo:{sid}', 'Apuesta múltiple')
+            nombres.append(f"- {animal[0]}: {format_local(monto_local,cfg)}")
+            c.execute(q("INSERT INTO apuestas (id,sorteo_id,usuario_id,animal_id,monto,fecha,monto_local,moneda,fx_units_per_usd) VALUES (?,?,?,?,?,?,?,?,?)"),
+                      (str(uuid.uuid4()),sid,session['user'],animal_id,monto_usd,datetime.now().isoformat(),monto_local,cfg['currency'],cfg['units_per_usd']))
+        registrar_movimiento(c, session['user'], 'APUESTA', -total_usd, f'sorteo:{sid}', f'Apuesta múltiple en {cfg["currency"]}')
         con.commit(); con.close()
-
-        enviar_correo_async(
-            u[1],f"Confirmación de tu apuesta - Sorteo #{sid}",
+        total_local=usd_to_local(total_usd,cfg)
+        enviar_correo_async(u[1],f"Confirmación de tu apuesta - Sorteo #{sid}",
             f"Hola,\n\nTu apuesta fue registrada correctamente.\n\n"
-            f"Animales elegidos:\n" + "\n".join(nombres) +
-            f"\n\nTotal apostado: ${total}\n\n"
-            "Cuando termine el sorteo recibirás un correo con el animal ganador.\n\nGloballotery"
-        )
-        return jsonify({"ok":True,"msg":"Apuesta registrada y correo enviado"})
+            f"Moneda: {cfg['currency']}\nAnimales elegidos:\n"+"\n".join(nombres)+
+            f"\n\nTotal apostado: {format_local(total_local,cfg)}\nPremio por acierto: x{PREMIO_MULTIPLICADOR}\n\nGloballotery")
+        return jsonify({"ok":True,"msg":"Apuesta registrada y correo enviado","total_local":total_local,"total_usd":total_usd,"moneda":cfg['currency']})
     except Exception as e:
         if con:
             try: con.rollback(); con.close()
             except Exception: pass
-        print("ERROR APOSTANDO:",e)
-        return jsonify({"ok":False,"msg":"Error registrando la apuesta"}),500
+        print("ERROR APOSTANDO:",e); return jsonify({"ok":False,"msg":"Error registrando la apuesta"}),500
 
 @app.route('/api/recarga-bcp', methods=['POST'])
 def recarga_bcp():
-    uid = session.get('user')
-    if not uid:
-        email_fb = request.form.get('email_fallback','').strip().lower()
-        if not email_fb and request.is_json:
-            try: email_fb = (request.json.get('email_fallback','') or '').strip().lower()
-            except: pass
-        if email_fb:
-            try:
-                con_fb = db(); c_fb = con_fb.cursor()
-                c_fb.execute(q("SELECT id FROM usuarios WHERE email=?"), (email_fb,))
-                r = c_fb.fetchone()
-                con_fb.close()
-                if r:
-                    uid = r[0]
-                    session['user'] = uid
-            except: pass
-    if not uid:
-        return jsonify({"ok":False,"msg":"No logueado"}),401
-
+    if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     try:
-        monto=validar_monto(request.form.get('monto',0) or (request.json.get('monto',0) if request.is_json else 0), 100000)
-    except ValueError as e:
-        return jsonify({"ok":False,"msg":str(e)}),400
-    if monto < 10:
-        return jsonify({"ok":False,"msg":"La recarga mínima es de $10"}),400
+        monto_local=validar_monto(request.form.get('monto',0) or (request.json.get('monto',0) if request.is_json else 0), 100000000)
+    except ValueError as e: return jsonify({"ok":False,"msg":str(e)}),400
+    con=db(); c=con.cursor(); c.execute(q("SELECT pais FROM usuarios WHERE id=?"),(session['user'],)); ur=c.fetchone(); pais=ur[0] if ur and ur[0] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
+    if monto_local < cfg['deposit_min']: con.close(); return jsonify({"ok":False,"msg":f"La recarga mínima es {format_local(cfg['deposit_min'],cfg)}"}),400
     operacion=str(request.form.get('operacion','') or (request.json.get('operacion','') if request.is_json else ''))[:100]
-    if not operacion:
-        return jsonify({"ok":False,"msg":"Falta el número de operación"}),400
+    if not operacion: con.close(); return jsonify({"ok":False,"msg":"Falta el número de operación"}),400
     file=request.files.get('voucher'); voucher_path=""
     if file and file.filename:
         ext=os.path.splitext(file.filename)[1].lower()
-        if ext not in {'.jpg','.jpeg','.png','.webp'}:
-            return jsonify({"ok":False,"msg":"El voucher debe ser JPG, PNG o WEBP"}),400
-        os.makedirs("static/vouchers", exist_ok=True)
-        fname=secure_filename(f"{uid}_{int(datetime.now().timestamp())}_{secrets.token_hex(4)}{ext}")
-        voucher_path=os.path.join("static/vouchers", fname); file.save(voucher_path)
-    con=db(); c=con.cursor()
-    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,operacion,estado,fecha,voucher) VALUES (?,?,?,?,?,?)"),(uid, monto, operacion, 'pendiente', datetime.now().isoformat(), voucher_path))
-    con.commit(); con.close()
-    return jsonify({"ok":True,"msg":f"Voucher S/{monto} enviado"})
+        if ext not in {'.jpg','.jpeg','.png','.webp'}: con.close(); return jsonify({"ok":False,"msg":"El voucher debe ser JPG, PNG o WEBP"}),400
+        os.makedirs("static/vouchers", exist_ok=True); fname=secure_filename(f"{session['user']}_{int(datetime.now().timestamp())}_{secrets.token_hex(4)}{ext}"); voucher_path=os.path.join("static/vouchers", fname); file.save(voucher_path)
+    monto_usd=local_to_usd(monto_local,cfg)
+    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,operacion,estado,fecha,voucher,monto_local,moneda,fx_units_per_usd) VALUES (?,?,?,?,?,?,?,?,?)"),
+              (session['user'],monto_usd,operacion,'pendiente',datetime.now().isoformat(),voucher_path,monto_local,cfg['currency'],cfg['units_per_usd']))
+    con.commit(); con.close(); return jsonify({"ok":True,"msg":f"Solicitud de recarga por {format_local(monto_local,cfg)} enviada"})
 
 @app.route("/api/solicitar-retiro", methods=["POST"])
 def solicitar_retiro():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     con=None
     try:
-        data=request.get_json() or {}
-        monto=validar_monto(data.get("monto",0), 100000); yape=str(data.get("yape","")).strip()
-        if monto < 15:
-            return jsonify({"ok":False,"msg":"El retiro mínimo es de $15"}),400
-        if len(yape)>100: return jsonify({"ok":False,"msg":"Dato de retiro demasiado largo"}),400
-        if not yape: return jsonify({"ok":False,"msg":"Indica el número/cuenta de retiro"}),400
-        con=db(); c=con.cursor()
-        c.execute(q("SELECT saldo,email FROM usuarios WHERE id=?"),(session['user'],))
-        u=c.fetchone()
-        if not u or float(u[0])<monto:
-            con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente S/{u[0] if u else 0}"}),400
-
-        c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=? AND saldo>=?"),(monto,session['user'],monto))
-        if c.rowcount != 1:
-            con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Saldo insuficiente"}),400
-        c.execute(q("INSERT INTO retiros (user_id,monto,banco_info,estado,fecha) VALUES (?,?,?,?,?)"),
-                  (session['user'],monto,yape,"pendiente",datetime.now().isoformat()))
+        data=request.get_json() or {}; monto_local=validar_monto(data.get("monto",0),100000000); destino=str(data.get("banco_info",data.get("yape",""))).strip()
+        if len(destino)>150: return jsonify({"ok":False,"msg":"Dato de retiro demasiado largo"}),400
+        if not destino: return jsonify({"ok":False,"msg":"Indica la cuenta o medio de retiro"}),400
+        con=db(); c=con.cursor(); c.execute(q("SELECT saldo,email,pais FROM usuarios WHERE id=?"),(session['user'],)); u=c.fetchone()
+        pais=u[2] if u and u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais); min_local=round_local_amount(usd_to_local(cfg['withdraw_min_usd'],cfg),cfg)
+        if monto_local < min_local: con.close(); return jsonify({"ok":False,"msg":f"El retiro mínimo es {format_local(min_local,cfg)}"}),400
+        monto_usd=local_to_usd(monto_local,cfg)
+        if not u or float(u[0] or 0)<monto_usd: con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente: {format_local(usd_to_local(float(u[0] or 0),cfg),cfg)}"}),400
+        c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=? AND saldo>=?"),(monto_usd,session['user'],monto_usd))
+        if c.rowcount != 1: con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Saldo insuficiente"}),400
+        c.execute(q("INSERT INTO retiros (user_id,monto,banco_info,estado,fecha,monto_local,moneda,fx_units_per_usd) VALUES (?,?,?,?,?,?,?,?)"),
+                  (session['user'],monto_usd,destino,"pendiente",datetime.now().isoformat(),monto_local,cfg['currency'],cfg['units_per_usd']))
         retiro_id=c.lastrowid if not is_postgres() else None
-        registrar_movimiento(c, session['user'], 'RETIRO_RESERVADO', -monto, f'retiro:{retiro_id or "pendiente"}', 'Saldo reservado para retiro')
+        registrar_movimiento(c,session['user'],'RETIRO_RESERVADO',-monto_usd,f'retiro:{retiro_id or "pendiente"}','Saldo reservado para retiro')
         con.commit(); con.close()
-        enviar_correo_async(u[1],"Solicitud de retiro recibida - Globallotery",
-                            f"Hola,\n\nRecibimos tu solicitud de retiro por $/{monto}.\n"
-                            f"Cuenta/número: {yape}\n\nPendiente de aprobación por el administrador.\n\nGloballotery")
+        enviar_correo_async(u[1],"Solicitud de retiro recibida - Globallotery",f"Hola,\n\nRecibimos tu solicitud de retiro por {format_local(monto_local,cfg)}.\nCuenta/medio: {destino}\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Solicitud enviada. El saldo quedó reservado."})
     except Exception as e:
         if con:
@@ -575,16 +594,16 @@ def aprobar_retiro():
     con=None
     try:
         rid=int((request.get_json() or {}).get("id",0)); con=db(); c=con.cursor()
-        c.execute(q("SELECT r.user_id,r.monto,r.estado,u.email FROM retiros r JOIN usuarios u ON u.id=r.user_id WHERE r.id=?"),(rid,))
+        c.execute(q("SELECT r.user_id,r.monto,r.estado,u.email,u.pais FROM retiros r JOIN usuarios u ON u.id=r.user_id WHERE r.id=?"),(rid,))
         r=c.fetchone()
         if not r: con.close(); return jsonify({"ok":False,"msg":"No existe"}),404
         if r[2]=='aprobado': con.close(); return jsonify({"ok":True,"msg":"Ya estaba aprobado"})
         if r[2]=='rechazado': con.close(); return jsonify({"ok":False,"msg":"El retiro ya fue rechazado"}),400
         c.execute(q("UPDATE retiros SET estado='aprobado' WHERE id=?"),(rid,))
-        registrar_movimiento(c, r[0], 'RETIRO_APROBADO', 0, f'retiro:{rid}', f'Retiro aprobado por S/{r[1]}')
+        registrar_movimiento(c, r[0], 'RETIRO_APROBADO', 0, f'retiro:{rid}', f'Retiro aprobado por {format_local(usd_to_local(float(r[1]), get_country_config(r[4] if r[4] in COUNTRY_CONFIG else 'USA')), get_country_config(r[4] if r[4] in COUNTRY_CONFIG else 'USA'))}')
         con.commit(); con.close()
         enviar_correo_async(r[3],"Retiro aprobado - Globallotery",
-                            f"Hola,\n\nTu retiro de ${r[1]} fue APROBADO.\n"
+                            f"Hola,\n\nTu retiro de {format_local(usd_to_local(float(r[1]), get_country_config(r[4] if r[4] in COUNTRY_CONFIG else 'USA')), get_country_config(r[4] if r[4] in COUNTRY_CONFIG else 'USA'))} fue APROBADO.\n"
                             "El pago puede ser procesado al medio registrado.\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Retiro aprobado correctamente"})
     except Exception as e:
@@ -600,7 +619,7 @@ def rechazar_retiro():
     con=None
     try:
         rid=int((request.get_json() or {}).get("id",0)); con=db(); c=con.cursor()
-        c.execute(q("SELECT r.user_id,r.monto,r.estado,u.email FROM retiros r JOIN usuarios u ON u.id=r.user_id WHERE r.id=?"),(rid,))
+        c.execute(q("SELECT r.user_id,r.monto,r.estado,u.email,u.pais FROM retiros r JOIN usuarios u ON u.id=r.user_id WHERE r.id=?"),(rid,))
         r=c.fetchone()
         if not r: con.close(); return jsonify({"ok":False,"msg":"No existe"}),404
         if r[2]=='rechazado': con.close(); return jsonify({"ok":True,"msg":"Ya estaba rechazado"})
@@ -610,8 +629,8 @@ def rechazar_retiro():
         c.execute(q("UPDATE retiros SET estado='rechazado' WHERE id=?"),(rid,))
         con.commit(); con.close()
         enviar_correo_async(r[3],"Retiro rechazado - Globallotery",
-                            f"Hola,\n\nTu retiro de S/{r[1]} fue rechazado.\n"
-                            f"El monto ${r[1]} fue devuelto a tu saldo.\n\nGloballotery")
+                            f"Hola,\n\nTu retiro fue rechazado.\n"
+                            f"El monto reservado fue devuelto a tu saldo.\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Rechazado y saldo devuelto"})
     except Exception as e:
         if con:
@@ -631,8 +650,9 @@ def api_movimientos():
 @app.route('/api/saldo')
 def api_saldo():
     if 'user' not in session: return jsonify({"saldo":0})
-    con=db(); c=con.cursor(); c.execute(q("SELECT saldo FROM usuarios WHERE id=?"),(session['user'],)); row=c.fetchone(); con.close()
-    return jsonify({"saldo":row[0] if row else 0})
+    con=db(); c=con.cursor(); c.execute(q("SELECT saldo,pais FROM usuarios WHERE id=?"),(session['user'],)); row=c.fetchone(); con.close()
+    pais=row[1] if row and row[1] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais); saldo_usd=float(row[0] or 0) if row else 0
+    return jsonify({"saldo":saldo_usd,"saldo_local":usd_to_local(saldo_usd,cfg),"moneda":cfg['currency'],"pais":pais})
 
 @app.route('/api/mis-apuestas')
 def api_mis_apuestas():
@@ -672,6 +692,42 @@ def api_historial_global():
     """))
     rows=c.fetchall(); con.close()
     return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "","ganador":r[2],"recaudado":r[3]} for r in rows])
+
+@app.route('/api/historial-sorteos')
+def api_historial_sorteos():
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT id,fecha_hora_cierre,animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') AND animal_ganador IS NOT NULL ORDER BY id DESC LIMIT 30"))
+    rows=c.fetchall(); con.close()
+    return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "","animal_ganador":r[2]} for r in rows])
+
+@app.route('/api/ultimo-resultado')
+def api_ultimo_resultado():
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT id,animal_ganador,estado FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') AND animal_ganador IS NOT NULL ORDER BY id DESC LIMIT 1"))
+    r=c.fetchone(); con.close()
+    return jsonify({"id":r[0] if r else None,"ganador":r[1] if r else None,"estado":r[2] if r else None})
+
+@app.route('/api/mis-apuestas-actuales')
+def api_mis_apuestas_actuales():
+    if 'user' not in session: return jsonify({"apuestas":{}}),401
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); s=c.fetchone()
+    if not s: con.close(); return jsonify({"apuestas":{}})
+    sid=s[0]
+    c.execute(q("SELECT animal_id,monto_local,monto FROM apuestas WHERE sorteo_id=? AND usuario_id=?"),(sid,session['user']))
+    rows=c.fetchall(); con.close()
+    apuestas={}
+    for animal_id,monto_local,monto_usd in rows:
+        apuestas[str(animal_id)] = float(monto_local if monto_local is not None else monto_usd)
+    return jsonify({"apuestas":apuestas})
+
+@app.route('/api/mis-retiros')
+def api_mis_retiros():
+    if 'user' not in session: return jsonify([]),401
+    con=db(); c=con.cursor()
+    c.execute(q("SELECT id,monto,monto_local,moneda,estado,fecha,banco_info FROM retiros WHERE user_id=? ORDER BY id DESC LIMIT 30"),(session['user'],))
+    rows=c.fetchall(); con.close()
+    return jsonify([{"id":r[0],"monto":r[1],"monto_local":r[2],"moneda":r[3],"estado":r[4],"fecha":r[5],"banco":r[6]} for r in rows])
 
 # ========== ADMIN ==========
 ADMIN_USER=os.environ.get("ADMIN_USER", "Globallotery")
@@ -717,7 +773,7 @@ def aprobar_recarga():
     con=None
     try:
         rid=int((request.json or {}).get("id",0)); con=db(); c=con.cursor()
-        c.execute(q("SELECT r.user_id,r.monto,r.estado,u.email FROM recargas_bcp r JOIN usuarios u ON u.id=r.user_id WHERE r.id=?"),(rid,))
+        c.execute(q("SELECT r.user_id,r.monto,r.estado,u.email,u.pais,r.monto_local,r.moneda FROM recargas_bcp r JOIN usuarios u ON u.id=r.user_id WHERE r.id=?"),(rid,))
         row=c.fetchone()
         if not row: con.close(); return jsonify({"ok":False,"msg":"Recarga no encontrada"}),404
         if row[2]=='aprobado': con.close(); return jsonify({"ok":True,"msg":"La recarga ya estaba aprobada"})
@@ -727,9 +783,9 @@ def aprobar_recarga():
         c.execute(q("UPDATE recargas_bcp SET estado='aprobado' WHERE id=?"),(rid,))
         con.commit(); con.close()
         enviar_correo_async(row[3],"Recarga aprobada - Globallotery",
-                            f"Hola,\n\nTu recarga de ${row[1]} fue aprobada correctamente.\n"
+                            f"Hola,\n\nTu recarga de {format_local(float(row[5] or usd_to_local(float(row[1]), get_country_config(row[4] if row[4] in COUNTRY_CONFIG else 'USA'))), get_country_config(row[4] if row[4] in COUNTRY_CONFIG else 'USA'))} fue aprobada correctamente.\n"
                             "El monto ya fue acreditado a tu saldo.\n\nGloballotery")
-        return jsonify({"ok":True,"msg":f"Aprobado ${row[1]}"})
+        return jsonify({"ok":True,"msg":f"Aprobado {format_local(float(row[5] or usd_to_local(float(row[1]), get_country_config(row[4] if row[4] in COUNTRY_CONFIG else 'USA'))), get_country_config(row[4] if row[4] in COUNTRY_CONFIG else 'USA'))}"})
     except Exception as e:
         if con:
             try: con.rollback(); con.close()
@@ -743,13 +799,13 @@ def rechazar_recarga():
     con=None
     try:
         rid=int((request.json or {}).get("id",0)); con=db(); c=con.cursor()
-        c.execute(q("SELECT r.estado,r.monto,u.email,r.user_id FROM recargas_bcp r JOIN usuarios u ON u.id=r.user_id WHERE r.id=?"),(rid,))
+        c.execute(q("SELECT r.estado,r.monto,u.email,r.user_id,u.pais,r.monto_local FROM recargas_bcp r JOIN usuarios u ON u.id=r.user_id WHERE r.id=?"),(rid,))
         row=c.fetchone()
         if not row: con.close(); return jsonify({"ok":False,"msg":"Recarga no encontrada"}),404
         if row[0]!='pendiente': con.close(); return jsonify({"ok":False,"msg":"La recarga ya fue procesada"}),400
         c.execute(q("UPDATE recargas_bcp SET estado='rechazado' WHERE id=?"),(rid,))
         con.commit(); con.close()
-        enviar_correo_async(row[2], 'Recarga rechazada - Globallotery', f'Hola,\n\nTu recarga de ${row[1]} fue rechazada.\n\nGloballotery')
+        enviar_correo_async(row[2], 'Recarga rechazada - Globallotery', f'Hola,\n\nTu recarga fue rechazada.\n\nGloballotery')
         return jsonify({"ok":True,"msg":"Recarga rechazada"})
     except Exception as e:
         if con:
