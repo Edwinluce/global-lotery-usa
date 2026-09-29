@@ -143,20 +143,13 @@ async function verHistorial(){
 <div id="modalRecarga" class="modal-recarga">
 <div class="box-recarga">
 <h3>💳 Add Balance</h3>
-<small class="sub">Current balance: <b id="saldoModal" style="color:#ffcc4d">$ 0.00</b></small>
-<div class="label-rec">💵 AMOUNT</div>
-<div class="montos" id="montosBtn">
-<button type="button" data-v="10">$ 10</button>
-<button type="button" data-v="20" class="active">$ 20</button>
-<button type="button" data-v="50">$ 50</button>
-<button type="button" data-v="100">$ 100</button>
-<button type="button" data-v="200">$ 200</button>
-<button type="button" data-v="500">$ 500</button>
-</div>
-<input id="montoCustom" type="number" class="input-card" placeholder="Other amount $ (min $10)">
+<small class="sub">Saldo actual: <b id="saldoModal" style="color:#ffcc4d">0</b></small>
+<div class="label-rec">💵 CANTIDAD</div>
+<div class="montos" id="montosBtn"></div>
+<input id="montoCustom" type="number" class="input-card" placeholder="Otro monto">
 <div class="bcp-destacado">
 <div style="font-size:11px;color:#d4a853;font-weight:800;text-align:center">💳 RECARGA</div>
-<div style="text-align:center;margin:6px 0"><b style="font-size:22px;color:#ffcc4d" id="montoMostrar">$ 50.00</b></div>
+<div style="text-align:center;margin:6px 0"><b style="font-size:22px;color:#ffcc4d" id="montoMostrar">0</b></div>
 <div id="paymentInfo" style="background:#111;border-radius:10px;padding:10px;font-size:12px;line-height:1.7;text-align:left">El pago con tarjeta se conectará mediante un proveedor de pagos para iGaming. Mientras tanto, esta pantalla conserva el flujo manual.</div>
 <button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="alert('El pago con tarjeta se habilitará cuando el proveedor esté configurado.')">💳 Pagar con tarjeta</button>
 </div>
@@ -164,7 +157,7 @@ async function verHistorial(){
 <input type="file" id="voucherFile" accept="image/*" class="input-card">
 <input id="operacion" class="input-card" placeholder="Zelle confirmation # (ex: 034521) *">
 <input id="cardNombre" class="input-card" placeholder="Name of sender">
-<button type="button" class="btn-pagar" id="btnPagar">✅ Send voucher - $ 50</button>
+<button type="button" class="btn-pagar" id="btnPagar">✅ Enviar solicitud</button>
 <button type="button" class="btn-cancel" onclick="cerrarRecarga()">Cancel</button>
 <div class="secure">Verified account weinderlyn@gmail.com - Approved in 5 min</div>
 </div>
@@ -222,7 +215,7 @@ function getCierreGlobal(){const unaHora=60*60*1000;return new Date(Math.ceil(Da
 setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){mostrarResultado();cierre=getCierreGlobal();apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cargarHistorial()}},1000);
 let montoRecarga=LEVELS.length?Math.max(DEPOSIT_MIN,LEVELS[0]):DEPOSIT_MIN; const modalRecarga=document.getElementById('modalRecarga');
 function abrirRecarga(){document.getElementById('saldoModal').innerText=money(usdToLocal(saldoActual));modalRecarga.style.display='flex'} function cerrarRecarga(){modalRecarga.style.display='none'} document.getElementById('btn-plus').onclick=abrirRecarga;
-const montosRecarga=[DEPOSIT_MIN,DEPOSIT_MIN*2,DEPOSIT_MIN*4,DEPOSIT_MIN*10]; const montosBox=document.getElementById('montosBtn'); montosRecarga.forEach((v,i)=>{let b=document.createElement('button');b.type='button';b.dataset.v=v;b.textContent=money(v);if(i===0)b.classList.add('active');b.onclick=()=>{document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRecarga=Number(v);document.getElementById('montoCustom').value='';document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga);document.getElementById('montoMostrar').innerText=money(montoRecarga)};montosBox.appendChild(b)});
+const montosRecarga=[DEPOSIT_MIN,DEPOSIT_MIN*2,DEPOSIT_MIN*5,DEPOSIT_MIN*10]; const montosBox=document.getElementById('montosBtn'); montosRecarga.forEach((v,i)=>{let b=document.createElement('button');b.type='button';b.dataset.v=v;b.textContent=money(v);if(i===0)b.classList.add('active');b.onclick=()=>{document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRecarga=Number(v);document.getElementById('montoCustom').value='';document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga);document.getElementById('montoMostrar').innerText=money(montoRecarga)};montosBox.appendChild(b)});
 document.getElementById('montoCustom').placeholder='Otro monto '+SYMBOL+' (mín. '+money(DEPOSIT_MIN)+')';document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga);document.getElementById('montoMostrar').innerText=money(montoRecarga);
 document.getElementById('montoCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRecarga=v;document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(v);document.getElementById('montoMostrar').innerText=money(v)}};
 document.getElementById('btnPagar').onclick=()=>{if(montoRecarga<DEPOSIT_MIN)return alert('La recarga mínima es '+money(DEPOSIT_MIN));let op=document.getElementById('operacion').value.trim();if(!op)return alert('Put confirmation number');let fd=new FormData();fd.append('monto',montoRecarga);fd.append('operacion',op);fd.append('nombre',document.getElementById('cardNombre').value);let file=document.getElementById('voucherFile').files[0];if(file)fd.append('voucher',file);document.getElementById('btnPagar').innerText='⏳ Sending...';fetch('/api/recarga-bcp',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{alert(d.msg);if(d.ok)cerrarRecarga();document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga)})};
