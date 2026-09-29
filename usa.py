@@ -600,10 +600,13 @@ def aprobar_retiro():
         if r[2]=='aprobado': con.close(); return jsonify({"ok":True,"msg":"Ya estaba aprobado"})
         if r[2]=='rechazado': con.close(); return jsonify({"ok":False,"msg":"El retiro ya fue rechazado"}),400
         c.execute(q("UPDATE retiros SET estado='aprobado' WHERE id=?"),(rid,))
-        registrar_movimiento(c, r[0], 'RETIRO_APROBADO', 0, f'retiro:{rid}', f'Retiro aprobado por {format_local(usd_to_local(float(r[1]), get_country_config(r[4] if r[4] in COUNTRY_CONFIG else 'USA')), get_country_config(r[4] if r[4] in COUNTRY_CONFIG else 'USA'))}')
+        pais_retiro = r[4] if r[4] in COUNTRY_CONFIG else 'USA'
+        cfg_retiro = get_country_config(pais_retiro)
+        retiro_local = format_local(usd_to_local(float(r[1]), cfg_retiro), cfg_retiro)
+        registrar_movimiento(c, r[0], 'RETIRO_APROBADO', 0, f'retiro:{rid}', f'Retiro aprobado por {retiro_local}')
         con.commit(); con.close()
         enviar_correo_async(r[3],"Retiro aprobado - Globallotery",
-                            f"Hola,\n\nTu retiro de {format_local(usd_to_local(float(r[1]), get_country_config(r[4] if r[4] in COUNTRY_CONFIG else 'USA')), get_country_config(r[4] if r[4] in COUNTRY_CONFIG else 'USA'))} fue APROBADO.\n"
+                            f"Hola,\n\nTu retiro de {retiro_local} fue APROBADO.\n"
                             "El pago puede ser procesado al medio registrado.\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Retiro aprobado correctamente"})
     except Exception as e:
@@ -781,11 +784,14 @@ def aprobar_recarga():
         c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"),(row[1],row[0]))
         registrar_movimiento(c, row[0], 'RECARGA', row[1], f'recarga:{rid}', 'Recarga aprobada por administrador')
         c.execute(q("UPDATE recargas_bcp SET estado='aprobado' WHERE id=?"),(rid,))
+        pais_recarga = row[4] if row[4] in COUNTRY_CONFIG else 'USA'
+        cfg_recarga = get_country_config(pais_recarga)
+        recarga_local = format_local(float(row[5] or usd_to_local(float(row[1]), cfg_recarga)), cfg_recarga)
         con.commit(); con.close()
         enviar_correo_async(row[3],"Recarga aprobada - Globallotery",
-                            f"Hola,\n\nTu recarga de {format_local(float(row[5] or usd_to_local(float(row[1]), get_country_config(row[4] if row[4] in COUNTRY_CONFIG else 'USA'))), get_country_config(row[4] if row[4] in COUNTRY_CONFIG else 'USA'))} fue aprobada correctamente.\n"
+                            f"Hola,\n\nTu recarga de {recarga_local} fue aprobada correctamente.\n"
                             "El monto ya fue acreditado a tu saldo.\n\nGloballotery")
-        return jsonify({"ok":True,"msg":f"Aprobado {format_local(float(row[5] or usd_to_local(float(row[1]), get_country_config(row[4] if row[4] in COUNTRY_CONFIG else 'USA'))), get_country_config(row[4] if row[4] in COUNTRY_CONFIG else 'USA'))}"})
+        return jsonify({"ok":True,"msg":f"Aprobado {recarga_local}"})
     except Exception as e:
         if con:
             try: con.rollback(); con.close()
