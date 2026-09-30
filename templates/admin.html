@@ -82,32 +82,43 @@ async function aprobar(id){let r=await fetch('/api/admin/aprobar-recarga',{metho
 async function abrirRetiros(){
   document.getElementById('modalRetiros').style.display='flex';
   document.getElementById('tablaRetiros').innerHTML='<tr><td>Cargando retiros...</td></tr>';
-  let r=await fetch('/api/admin/retiros');
-  let d=await r.json();
-  if(!d.length){document.getElementById('tablaRetiros').innerHTML='<tr><td>No hay retiros</td></tr>'; return;}
-  let h='<tr><th>ID</th><th>User</th><th>Monto</th><th>Yape</th><th>Acción</th></tr>';
-  d.forEach(x=>{
-    let esPendiente = (x.estado||'').toUpperCase()=='PENDIENTE';
-    let btns = esPendiente
-     ? `<button onclick="aprobarRetiro(${x.id})" style="background:#1ee66d;color:#000;padding:6px 10px;border:0;border-radius:8px;font-weight:800;cursor:pointer">✅ APROBAR Y RESTAR</button><br><br><button onclick="rechazarRetiro(${x.id})" style="background:#ff2d2d;color:#fff;padding:5px 10px;border:0;border-radius:8px;cursor:pointer">❌ RECHAZAR</button>`
-      : `<span style="color:${x.estado=='APROBADO'?'#1ee66d':'#ff2d2d'}">${x.estado}</span>`;
-    h+=`<tr><td>#${x.id}</td><td>${x.user}<br><small style="opacity:.7">${x.email}</small><br><small>${x.fecha}</small></td><td><b>S/ ${x.monto}</b></td><td style="word-break:break-all">${x.banco}</td><td>${btns}</td></tr>`;
-  });
-  document.getElementById('tablaRetiros').innerHTML=h;
+  try{
+    let r=await fetch('/api/admin/retiros');
+    let d=await r.json();
+    if(!Array.isArray(d) || !d.length){document.getElementById('tablaRetiros').innerHTML='<tr><td>No hay retiros registrados</td></tr>'; return;}
+    let h='<tr><th>ID</th><th>User</th><th>Monto</th><th>Medio</th><th>Estado</th><th>Acción</th></tr>';
+    d.forEach(x=>{
+      const estado=(x.estado||'PENDIENTE').toUpperCase();
+      const color=estado==='APROBADO'?'#1ee66d':(estado==='RECHAZADO'?'#ff2d2d':'#e9c97a');
+      const montoLocal=Number(x.monto_local||x.monto||0);
+      const moneda=x.moneda||'USD';
+      let btns='';
+      if(estado==='PENDIENTE'){
+        btns=`<button onclick="aprobarRetiro(${x.id})" style="background:#1ee66d;color:#000;padding:6px 10px;border:0;border-radius:8px;font-weight:800;cursor:pointer">✅ APROBAR</button><br><br><button onclick="rechazarRetiro(${x.id})" style="background:#ff2d2d;color:#fff;padding:5px 10px;border:0;border-radius:8px;cursor:pointer">❌ RECHAZAR</button>`;
+      }else{
+        btns=`<span style="color:${color};font-weight:900">${estado}</span>`;
+      }
+      h+=`<tr><td>#${x.id}</td><td>${x.user||'-'}<br><small style="opacity:.7">${x.email||''}</small><br><small>${x.fecha||''}</small></td><td><b>${moneda} ${montoLocal.toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2})}</b><br><small style="opacity:.6">USD ${Number(x.monto||0).toFixed(4)}</small></td><td style="word-break:break-all">${x.banco||'-'}</td><td style="color:${color};font-weight:900">${estado}</td><td>${btns}</td></tr>`;
+    });
+    document.getElementById('tablaRetiros').innerHTML=h;
+  }catch(e){
+    document.getElementById('tablaRetiros').innerHTML='<tr><td>Error cargando retiros: '+e+'</td></tr>';
+  }
 }
 
 async function aprobarRetiro(id){
-  if(!confirm('¿Aprobar retiro #'+id+'? SE DESCONTARÁ el saldo al usuario automáticamente.')) return;
-  let res=await fetch('/api/admin/retiros/aprobar',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});
-  let j=await res.json();
-  alert(j.msg || 'Retiro aprobado y saldo descontado');
-  abrirRetiros();
+  if(!confirm('¿Aprobar retiro #'+id+'? El saldo ya quedó reservado al solicitarlo.')) return;
+  let res=await fetch('/api/aprobar-retiro',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});
+  let j=await res.json().catch(()=>({ok:false,msg:'Respuesta inválida'}));
+  alert(j.msg || (j.ok?'Retiro aprobado':'No se pudo aprobar'));
+  if(j.ok) abrirRetiros();
 }
 async function rechazarRetiro(id){
-  if(!confirm('¿Rechazar retiro #'+id+'? No se descontará saldo.')) return;
-  await fetch('/api/admin/retiros/rechazar',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});
-  alert('Retiro rechazado');
-  abrirRetiros();
+  if(!confirm('¿Rechazar retiro #'+id+'? El saldo reservado será devuelto al usuario.')) return;
+  let res=await fetch('/api/rechazar-retiro',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});
+  let j=await res.json().catch(()=>({ok:false,msg:'Respuesta inválida'}));
+  alert(j.msg || (j.ok?'Retiro rechazado y saldo devuelto':'No se pudo rechazar'));
+  if(j.ok) abrirRetiros();
 }
 
 async function abrirTasas(){

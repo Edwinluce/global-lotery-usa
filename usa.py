@@ -616,6 +616,7 @@ def solicitar_retiro():
         return jsonify({"ok":False,"msg":"No se pudo crear el retiro"}),500
 
 @app.route("/api/aprobar-retiro", methods=["POST"])
+@app.route("/api/admin/retiros/aprobar", methods=["POST"])
 def aprobar_retiro():
     if not require_admin(request): return jsonify({"ok":False,"msg":"Sesión administrativa inválida"}),403
     if not session.get('admin'): return jsonify({"ok":False,"msg":"No admin"}),401
@@ -644,6 +645,7 @@ def aprobar_retiro():
         return jsonify({"ok":False,"msg":"No se pudo aprobar el retiro"}),500
 
 @app.route("/api/rechazar-retiro", methods=["POST"])
+@app.route("/api/admin/retiros/rechazar", methods=["POST"])
 def rechazar_retiro():
     if not require_admin(request): return jsonify({"ok":False,"msg":"Sesión administrativa inválida"}),403
     if not session.get('admin'): return jsonify({"ok":False,"msg":"No admin"}),401
@@ -947,9 +949,38 @@ def api_admin_apuestas_actual():
 def api_admin_retiros():
     if not session.get('admin'): return jsonify([])
     con=db(); c=con.cursor()
-    c.execute(q("SELECT r.id, u.email, r.monto, r.banco_info, r.estado, r.fecha FROM retiros r LEFT JOIN usuarios u ON u.id=r.user_id WHERE r.estado='pendiente' ORDER BY r.id DESC"))
+    c.execute(q("""
+        SELECT r.id, r.user_id, u.email, r.monto, r.monto_local, r.moneda,
+               r.banco_info, r.estado, r.fecha, u.pais
+        FROM retiros r
+        LEFT JOIN usuarios u ON u.id=r.user_id
+        ORDER BY r.id DESC
+        LIMIT 50
+    """))
     rows=c.fetchall(); con.close()
-    return jsonify([{"id":r[0],"email":r[1],"monto":r[2],"banco":r[3],"estado":r[4],"fecha":r[5]} for r in rows])
+    lista=[]
+    for r in rows:
+        pais = r[9] if r[9] in COUNTRY_CONFIG else 'USA'
+        cfg = get_country_config(pais)
+        monto_local = r[4]
+        if monto_local is None:
+            try: monto_local = usd_to_local(float(r[3] or 0), cfg)
+            except Exception: monto_local = r[3] or 0
+        moneda = r[5] or cfg['currency']
+        lista.append({
+            "id": r[0],
+            "user_id": r[1],
+            "user": r[1],
+            "email": r[2] or "",
+            "monto": float(r[3] or 0),
+            "monto_local": float(monto_local or 0),
+            "moneda": moneda,
+            "banco": r[6] or "",
+            "estado": (r[7] or "pendiente").upper(),
+            "fecha": r[8] or "",
+            "pais": pais
+        })
+    return jsonify(lista)
 
 @app.route('/admin/usuarios')
 def admin_usuarios_page():
