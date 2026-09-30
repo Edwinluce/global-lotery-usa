@@ -73,10 +73,11 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 <div class="modal" id="modalRetiros"><div class="modal-box"><div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#ff3a3a">💸 Retiros</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div><table id="tablaRetiros"></table></div></div>
 
 <script>
+const CSRF_TOKEN = {{ csrf_token|tojson }};
 function cerrar(){document.querySelectorAll('.modal').forEach(m=>m.style.display='none')}
-async function control(a){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:a})});location.reload()}
-async function controlTiempo(m){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'tiempo',min:m})});location.reload()}
-async function aprobar(id){let r=await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});let j=await r.json();alert(j.msg);location.reload()}
+async function control(a){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({accion:a})});location.reload()}
+async function controlTiempo(m){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({accion:'tiempo',min:m})});location.reload()}
+async function aprobar(id){let r=await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});let j=await r.json();alert(j.msg);location.reload()}
 
 async function abrirRetiros(){
   document.getElementById('modalRetiros').style.display='flex';
@@ -97,14 +98,14 @@ async function abrirRetiros(){
 
 async function aprobarRetiro(id){
   if(!confirm('¿Aprobar retiro #'+id+'? SE DESCONTARÁ el saldo al usuario automáticamente.')) return;
-  let res=await fetch('/api/admin/retiros/aprobar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  let res=await fetch('/api/admin/retiros/aprobar',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});
   let j=await res.json();
   alert(j.msg || 'Retiro aprobado y saldo descontado');
   abrirRetiros();
 }
 async function rechazarRetiro(id){
   if(!confirm('¿Rechazar retiro #'+id+'? No se descontará saldo.')) return;
-  await fetch('/api/admin/retiros/rechazar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  await fetch('/api/admin/retiros/rechazar',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});
   alert('Retiro rechazado');
   abrirRetiros();
 }
@@ -127,7 +128,7 @@ async function abrirTasas(){
 async function guardarTasa(pais,id){
  const tasa=parseFloat(document.getElementById(id).value);
  if(!Number.isFinite(tasa)||tasa<=0){alert('Ingresa una tasa mayor que 0.');return;}
- const r=await fetch('/api/admin/tasas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pais,tasa_usd:tasa})});
+ const r=await fetch('/api/admin/tasas',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({pais,tasa_usd:tasa})});
  const j=await r.json(); if(!j.ok){alert(j.msg||'No se pudo guardar');return;}
  document.getElementById('tasasEstado').innerText=j.msg+' ✓';
 }
