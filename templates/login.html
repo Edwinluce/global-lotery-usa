@@ -115,8 +115,8 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 <h3>Crear cuenta nueva</h3><small>Saldo inicial $0.00 • Moneda local según país • Solo mayores de 18 años</small>
 <input id="reg-email" type="email" placeholder="Correo electrónico *">
 <div class="pais-row">
-<select id="reg-pais"><option value="USA">🇺🇸 Estados Unidos</option><option value="Perú">🇵🇪 Perú</option><option value="Venezuela">🇻🇪 Venezuela</option><option value="Colombia">🇨🇴 Colombia</option><option value="Chile">🇨🇱 Chile</option><option value="Ecuador">🇪🇨 Ecuador</option><option value="Bolivia">🇧🇴 Bolivia</option><option value="Argentina">🇦🇷 Argentina</option><option value="México">🇲🇽 México</option><option value="España">🇪🇸 España</option><option value="Otro">🌎 Otro</option></select>
-<select id="reg-codigo"><option>+1</option><option>+54</option><option>+52</option><option>+34</option><option>+51</option><option>+58</option><option>+57</option><option>+56</option><option>+593</option><option>+591</option></select>
+<select id="reg-pais"><option value="USA">🇺🇸 Estados Unidos</option><option value="Perú">🇵🇪 Perú</option><option value="Chile">🇨🇱 Chile</option></select>
+<select id="reg-codigo"><option>+1</option><option>+51</option><option>+56</option></select>
 </div>
 <input id="reg-tel" type="tel" placeholder="Número de teléfono * Ej: 999 888 777">
 <input id="reg-pass" type="password" placeholder="Contraseña *">
@@ -200,7 +200,7 @@ function registrar(){
  if(!$('reg-18').checked){ err.innerText='Debes confirmar que eres mayor de 18 años.'; err.style.display='block'; return; }
  if(!$('reg-terms').checked){ err.innerText='Debes aceptar los Términos y Condiciones.'; err.style.display='block'; return; }
  if(p1!==p2){ err.innerText='Las claves no coinciden - verifica'; err.style.display='block'; return; }
- if(p1.length<6){ err.innerText='Clave mínimo 6 caracteres'; err.style.display='block'; return; }
+ if(p1.length<8){ err.innerText='Clave mínimo 8 caracteres'; err.style.display='block'; return; }
  let telefono = cod+' '+tel;
  fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
    email:email,password:p1,telefono:telefono,pais:pais,terminos_aceptados:true

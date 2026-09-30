@@ -44,6 +44,10 @@ except Exception:
 
 PREMIO_MULTIPLICADOR = 25
 
+# Países habilitados actualmente para operar la plataforma.
+# El resto de COUNTRY_CONFIG queda preparado para futuras expansiones.
+PAISES_ACTIVOS = ["Perú", "Chile", "USA"]
+
 def get_country_config(country):
     return COUNTRY_CONFIG.get(country, COUNTRY_CONFIG["USA"])
 
@@ -220,6 +224,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto FLOAT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id SERIAL PRIMARY KEY, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id SERIAL PRIMARY KEY, user_id INTEGER, monto FLOAT, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id SERIAL PRIMARY KEY, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id SERIAL PRIMARY KEY, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -231,6 +236,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto REAL, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto REAL, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -249,6 +255,10 @@ def init_db():
         ("recargas_bcp", "monto_local", "REAL"),
         ("recargas_bcp", "moneda", "TEXT"),
         ("recargas_bcp", "fx_units_per_usd", "REAL"),
+        ("recargas_bcp", "metodo_pago_id", "INTEGER"),
+        ("recargas_bcp", "metodo_pago_nombre", "TEXT"),
+        ("recargas_bcp", "metodo_pago_destino", "TEXT"),
+        ("recargas_bcp", "nombre_remitente", "TEXT"),
         ("retiros", "monto_local", "REAL"),
         ("retiros", "moneda", "TEXT"),
         ("retiros", "fx_units_per_usd", "REAL")
@@ -304,6 +314,37 @@ def cargar_tasas_paises():
         print("ERROR CARGANDO TASAS POR PAIS:",e)
 
 cargar_tasas_paises()
+
+def cargar_metodos_pago():
+    """Crea métodos manuales iniciales sin sobrescribir cambios hechos por admin."""
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        # Mantiene la información que ya estaba configurada en el proyecto para Perú.
+        defaults = [
+            ("Perú", "Yape", "billetera", "", "", "", "Configura aquí el número Yape desde el panel admin."),
+            ("Perú", "BCP", "banco", MI_CUENTA_BCP, MI_NOMBRE_BCP, "BCP", "Puedes indicar cuenta y/o CCI en las instrucciones."),
+            ("Chile", "Transferencia bancaria", "banco", "", "", "", "Configura los datos de tu cuenta bancaria desde el panel admin."),
+            ("USA", "Zelle", "zelle", "", "", "", "Configura aquí el correo o teléfono de Zelle desde el panel admin."),
+        ]
+        for pais,nombre,tipo,destino,titular,banco,instrucciones in defaults:
+            c.execute(q("SELECT id FROM metodos_pago WHERE pais=? AND nombre=? LIMIT 1"),(pais,nombre))
+            if not c.fetchone():
+                ahora=datetime.now().isoformat()
+                if is_postgres():
+                    c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado) VALUES (?,?,?,?,?,?,?,1,?)"),
+                              (pais,nombre,tipo,destino,titular,banco,instrucciones,ahora))
+                else:
+                    c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado) VALUES (?,?,?,?,?,?,?,1,?)"),
+                              (pais,nombre,tipo,destino,titular,banco,instrucciones,ahora))
+        con.commit(); con.close()
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        print("ERROR CARGANDO METODOS DE PAGO:",e)
+
+cargar_metodos_pago()
 
 def get_config():
     try:
@@ -445,7 +486,8 @@ def api_register():
         email=str(d.get('email','')).strip().lower()
         password=str(d.get('password',''))
         pais=str(d.get('pais','USA')).strip()
-        if pais not in COUNTRY_CONFIG: pais='USA'
+        if pais not in PAISES_ACTIVOS:
+            return jsonify({"ok":False,"msg":"Por ahora solo están habilitados Perú, Chile y Estados Unidos."}),400
         cfg=get_country_config(pais)
         if '@' not in email or len(email)>254: return jsonify({"ok":False,"msg":"Correo inválido"}),400
         if len(password)<8 or len(password)>128: return jsonify({"ok":False,"msg":"La contraseña debe tener entre 8 y 128 caracteres"}),400
@@ -514,6 +556,33 @@ def api_configuracion_juego():
     out=dict(cfg); out.update({"pais":pais,"premio_multiplicador":PREMIO_MULTIPLICADOR})
     return jsonify({"ok":True,"config":out})
 
+@app.route('/api/metodos-pago')
+def api_metodos_pago():
+    if 'user' not in session:
+        return jsonify({"ok":False,"msg":"No logueado"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        c.execute(q("SELECT pais FROM usuarios WHERE id=?"),(session['user'],))
+        r=c.fetchone()
+        pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'
+        c.execute(q("""
+            SELECT id,nombre,tipo,destino,titular,banco,instrucciones
+            FROM metodos_pago
+            WHERE pais=? AND activo=1 AND TRIM(COALESCE(destino,''))<>''
+            ORDER BY id
+        """),(pais,))
+        rows=c.fetchall(); con.close()
+        return jsonify({"ok":True,"pais":pais,"metodos":[
+            {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or ""}
+            for x in rows
+        ]})
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        return jsonify({"ok":False,"msg":"No se pudieron cargar los métodos de pago"}),500
+
 @app.route('/api/apostar-multiple', methods=['POST'])
 def apostar_multiple():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
@@ -572,20 +641,65 @@ def recarga_bcp():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     try:
         monto_local=validar_monto(request.form.get('monto',0) or (request.json.get('monto',0) if request.is_json else 0), 100000000)
-    except ValueError as e: return jsonify({"ok":False,"msg":str(e)}),400
-    con=db(); c=con.cursor(); c.execute(q("SELECT pais FROM usuarios WHERE id=?"),(session['user'],)); ur=c.fetchone(); pais=ur[0] if ur and ur[0] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
-    if monto_local < cfg['deposit_min']: con.close(); return jsonify({"ok":False,"msg":f"La recarga mínima es {format_local(cfg['deposit_min'],cfg)}"}),400
-    operacion=str(request.form.get('operacion','') or (request.json.get('operacion','') if request.is_json else ''))[:100]
-    if not operacion: con.close(); return jsonify({"ok":False,"msg":"Falta el número de operación"}),400
-    file=request.files.get('voucher'); voucher_path=""
-    if file and file.filename:
-        ext=os.path.splitext(file.filename)[1].lower()
-        if ext not in {'.jpg','.jpeg','.png','.webp'}: con.close(); return jsonify({"ok":False,"msg":"El voucher debe ser JPG, PNG o WEBP"}),400
-        os.makedirs("static/vouchers", exist_ok=True); fname=secure_filename(f"{session['user']}_{int(datetime.now().timestamp())}_{secrets.token_hex(4)}{ext}"); voucher_path=os.path.join("static/vouchers", fname); file.save(voucher_path)
-    monto_usd=local_to_usd(monto_local,cfg)
-    c.execute(q("INSERT INTO recargas_bcp (user_id,monto,operacion,estado,fecha,voucher,monto_local,moneda,fx_units_per_usd) VALUES (?,?,?,?,?,?,?,?,?)"),
-              (session['user'],monto_usd,operacion,'pendiente',datetime.now().isoformat(),voucher_path,monto_local,cfg['currency'],cfg['units_per_usd']))
-    con.commit(); con.close(); return jsonify({"ok":True,"msg":f"Solicitud de recarga por {format_local(monto_local,cfg)} enviada"})
+    except ValueError as e:
+        return jsonify({"ok":False,"msg":str(e)}),400
+
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        c.execute(q("SELECT pais,email FROM usuarios WHERE id=?"),(session['user'],))
+        ur=c.fetchone()
+        pais=ur[0] if ur and ur[0] in COUNTRY_CONFIG else 'USA'
+        cfg=get_country_config(pais)
+        if monto_local < cfg['deposit_min']:
+            con.close(); return jsonify({"ok":False,"msg":f"La recarga mínima es {format_local(cfg['deposit_min'],cfg)}"}),400
+
+        metodo_raw=request.form.get('metodo_pago_id','') or (request.json.get('metodo_pago_id','') if request.is_json else '')
+        try: metodo_id=int(metodo_raw)
+        except Exception: metodo_id=0
+        c.execute(q("""
+            SELECT id,nombre,tipo,destino,titular,banco,instrucciones
+            FROM metodos_pago
+            WHERE id=? AND pais=? AND activo=1
+        """),(metodo_id,pais))
+        metodo=c.fetchone()
+        if not metodo:
+            con.close(); return jsonify({"ok":False,"msg":"Selecciona un método de pago habilitado."}),400
+
+        operacion=str(request.form.get('operacion','') or (request.json.get('operacion','') if request.is_json else ''))[:100]
+        if not operacion:
+            con.close(); return jsonify({"ok":False,"msg":"Falta el número de operación o referencia"}),400
+        nombre_remitente=str(request.form.get('nombre','') or (request.json.get('nombre','') if request.is_json else ''))[:100]
+        if not nombre_remitente:
+            con.close(); return jsonify({"ok":False,"msg":"Indica el nombre de quien realizó el pago"}),400
+
+        file=request.files.get('voucher'); voucher_path=""
+        if file and file.filename:
+            ext=os.path.splitext(file.filename)[1].lower()
+            if ext not in {'.jpg','.jpeg','.png','.webp'}:
+                con.close(); return jsonify({"ok":False,"msg":"El voucher debe ser JPG, PNG o WEBP"}),400
+            os.makedirs("static/vouchers", exist_ok=True)
+            fname=secure_filename(f"{session['user']}_{int(datetime.now().timestamp())}_{secrets.token_hex(4)}{ext}")
+            voucher_path=os.path.join("static/vouchers", fname); file.save(voucher_path)
+
+        monto_usd=local_to_usd(monto_local,cfg)
+        c.execute(q("""
+            INSERT INTO recargas_bcp
+            (user_id,monto,operacion,estado,fecha,voucher,monto_local,moneda,fx_units_per_usd,
+             metodo_pago_id,metodo_pago_nombre,metodo_pago_destino,nombre_remitente)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """),(
+            session['user'],monto_usd,operacion,'pendiente',datetime.now().isoformat(),voucher_path,
+            monto_local,cfg['currency'],cfg['units_per_usd'],metodo[0],metodo[1],metodo[3] or '',nombre_remitente
+        ))
+        con.commit(); con.close()
+        return jsonify({"ok":True,"msg":f"Solicitud de recarga por {format_local(monto_local,cfg)} enviada"})
+    except Exception as e:
+        if con:
+            try: con.rollback(); con.close()
+            except Exception: pass
+        print("ERROR RECARGA:",e)
+        return jsonify({"ok":False,"msg":"No se pudo registrar la recarga"}),500
 
 @app.route("/api/solicitar-retiro", methods=["POST"])
 def solicitar_retiro():
@@ -791,7 +905,7 @@ def admin_panel():
     sid = sorteo_actual[0] if sorteo_actual else 0
     c.execute(q("SELECT COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=?"), (sid,))
     recaudado = int(float(c.fetchone()[0] or 0))
-    c.execute(q("SELECT r.*, u.email FROM recargas_bcp r LEFT JOIN usuarios u ON u.id=r.user_id WHERE r.estado='pendiente' ORDER BY r.id DESC")); recargas=c.fetchall()
+    c.execute(q("SELECT r.id,r.user_id,r.monto,r.operacion,r.estado,r.fecha,r.voucher,r.monto_local,r.moneda,r.metodo_pago_nombre,r.metodo_pago_destino,r.nombre_remitente,u.email FROM recargas_bcp r LEFT JOIN usuarios u ON u.id=r.user_id WHERE r.estado='pendiente' ORDER BY r.id DESC")); recargas=c.fetchall()
     c.execute(q("SELECT COUNT(*) FROM usuarios")); num_usuarios=c.fetchone()[0] or 0
     con.close()
     tu_25 = int(recaudado*0.25)
@@ -869,6 +983,93 @@ def api_admin_control():
         c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO',?)"), (proximo.isoformat(), tiempo))
         con.commit(); con.close()
     return jsonify({"ok":True})
+
+@app.route('/api/admin/metodos-pago')
+def api_admin_metodos_pago():
+    if not session.get('admin'):
+        return jsonify({"ok":False,"msg":"No admin"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        c.execute(q("""
+            SELECT id,pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado
+            FROM metodos_pago ORDER BY pais,id
+        """))
+        rows=c.fetchall(); con.close()
+        return jsonify({"ok":True,"metodos":[
+            {"id":r[0],"pais":r[1],"nombre":r[2],"tipo":r[3],"destino":r[4] or "","titular":r[5] or "","banco":r[6] or "","instrucciones":r[7] or "","activo":bool(r[8]),"actualizado":r[9] or ""}
+            for r in rows
+        ]})
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        return jsonify({"ok":False,"msg":"No se pudieron cargar los métodos de pago"}),500
+
+@app.route('/api/admin/metodos-pago', methods=['POST'])
+def api_admin_metodos_pago_guardar():
+    if not require_admin(request):
+        return jsonify({"ok":False,"msg":"Sesión administrativa inválida"}),403
+    if not session.get('admin'):
+        return jsonify({"ok":False,"msg":"No admin"}),401
+    d=request.json or {}
+    try:
+        mid=int(d.get('id',0) or 0)
+        pais=str(d.get('pais','')).strip()
+        nombre=str(d.get('nombre','')).strip()[:80]
+        tipo=str(d.get('tipo','')).strip()[:40]
+        destino=str(d.get('destino','')).strip()[:160]
+        titular=str(d.get('titular','')).strip()[:120]
+        banco=str(d.get('banco','')).strip()[:100]
+        instrucciones=str(d.get('instrucciones','')).strip()[:300]
+        activo=1 if bool(d.get('activo',True)) else 0
+    except Exception:
+        return jsonify({"ok":False,"msg":"Datos inválidos"}),400
+    if pais not in COUNTRY_CONFIG:
+        return jsonify({"ok":False,"msg":"País no válido"}),400
+    if not nombre or not tipo:
+        return jsonify({"ok":False,"msg":"Nombre y tipo son obligatorios"}),400
+    ahora=datetime.now().isoformat(); con=None
+    try:
+        con=db(); c=con.cursor()
+        if mid>0:
+            c.execute(q("UPDATE metodos_pago SET pais=?,nombre=?,tipo=?,destino=?,titular=?,banco=?,instrucciones=?,activo=?,actualizado=? WHERE id=?"),
+                      (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,ahora,mid))
+            if c.rowcount != 1:
+                con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Método no encontrado"}),404
+        else:
+            c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado) VALUES (?,?,?,?,?,?,?,?,?)"),
+                      (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,ahora))
+            mid=c.lastrowid if not is_postgres() else None
+        con.commit(); con.close()
+        return jsonify({"ok":True,"msg":"Método de pago guardado","id":mid})
+    except Exception as e:
+        if con:
+            try: con.rollback(); con.close()
+            except Exception: pass
+        print("ERROR GUARDANDO METODO PAGO:",e)
+        return jsonify({"ok":False,"msg":"No se pudo guardar el método"}),500
+
+@app.route('/api/admin/metodos-pago/eliminar', methods=['POST'])
+def api_admin_metodos_pago_eliminar():
+    if not require_admin(request):
+        return jsonify({"ok":False,"msg":"Sesión administrativa inválida"}),403
+    if not session.get('admin'):
+        return jsonify({"ok":False,"msg":"No admin"}),401
+    try: mid=int((request.json or {}).get('id',0))
+    except Exception: return jsonify({"ok":False,"msg":"ID inválido"}),400
+    if mid<=0: return jsonify({"ok":False,"msg":"ID inválido"}),400
+    con=None
+    try:
+        con=db(); c=con.cursor(); c.execute(q("DELETE FROM metodos_pago WHERE id=?"),(mid,))
+        if c.rowcount != 1:
+            con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Método no encontrado"}),404
+        con.commit(); con.close(); return jsonify({"ok":True,"msg":"Método eliminado"})
+    except Exception:
+        if con:
+            try: con.rollback(); con.close()
+            except Exception: pass
+        return jsonify({"ok":False,"msg":"No se pudo eliminar"}),500
 
 @app.route('/api/admin/tasas')
 def api_admin_tasas():

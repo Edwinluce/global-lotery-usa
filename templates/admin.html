@@ -38,16 +38,26 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 <div class="flex"><button class="btn btn-gold" onclick="document.getElementById('recargas').scrollIntoView()">💳 Recargas ({{ recargas_count }})</button><button class="btn btn-gray" onclick="abrirApuestas()">🦁 Animales Apostados</button></div>
 <div class="flex" style="margin-top:10px"><button class="btn btn-gray" onclick="abrirGanancias()">📜 Ganancias</button><button class="btn btn-gray" onclick="abrirApuestas()">🎯 Apuestas Actual</button></div>
 <div style="margin-top:10px"><button class="btn btn-outline-red" onclick="abrirRetiros()">💸 Retiros Pendientes</button></div>
-<div style="margin-top:10px"><button class="btn btn-gold" onclick="abrirTasas()">🌎 Tasas por País</button></div>
+<div style="margin-top:10px" class="flex"><button class="btn btn-gold" onclick="abrirTasas()">🌎 Tasas por País</button><button class="btn btn-gold" onclick="abrirMetodosPago()">💳 Métodos de Pago</button></div>
 
 <div class="card" id="recargas" style="margin-top:14px">
-  <div style="font-weight:900">💳 Recargas BCP Pendientes</div>
+  <div style="font-weight:900">💳 Recargas Manuales Pendientes</div>
   {% if recargas_pendientes %}
-  <table><tr><th>Email</th><th>Monto</th><th>Operación</th><th>Voucher</th><th></th></tr>
+  <table><tr><th>Email</th><th>Monto</th><th>Operación</th><th>Método</th><th>Remitente</th><th>Voucher</th><th></th></tr>
   {% for r in recargas_pendientes %}
-  <tr><td>{{ r[7] }}</td><td>S/ {{ r[2] }}</td><td>{{ r[3] }}</td><td>{% if r[6] %}<a href="/{{ r[6] }}" target="_blank">Ver</a>{% else %}-{% endif %}</td><td><button class="btn btn-green" style="padding:6px 10px" onclick="aprobar({{ r[0] }})">Aprobar</button></td></tr>
+  <tr><td>{{ r[12] }}</td><td>{{ r[7] or r[2] }} {{ r[8] }}</td><td>{{ r[3] }}</td><td>{{ r[9] or "-" }}<br><small>{{ r[10] or "" }}</small></td><td>{{ r[11] or "-" }}</td><td>{% if r[6] %}<a href="/{{ r[6] }}" target="_blank">Ver</a>{% else %}-{% endif %}</td><td><button class="btn btn-green" style="padding:6px 10px" onclick="aprobar({{ r[0] }})">Aprobar</button></td></tr>
   {% endfor %}</table>
   {% else %}<div style="opacity:.5;margin-top:10px">No hay recargas pendientes</div>{% endif %}
+</div>
+
+<div class="modal" id="modalMetodosPago">
+  <div class="modal-box" style="max-width:900px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0;color:#e9c97a">💳 Métodos de Pago Manuales</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
+    <div class="rate-note">Aquí puedes cambiar las cuentas/números que verá cada jugador según su país. No necesitas tocar el código ni volver a desplegar para cambiar un dato.</div>
+    <div class="flex" style="margin-top:12px"><button class="btn btn-green" onclick="agregarMetodoPago()">➕ Agregar método</button><button class="btn btn-gray" onclick="abrirMetodosPago()">↻ Actualizar</button></div>
+    <div id="metodosEstado" style="margin:12px 0;color:#1ee66d;font-weight:800"></div>
+    <div style="overflow:auto"><table><thead><tr><th>País</th><th>Método</th><th>Destino / número / correo</th><th>Titular</th><th>Banco</th><th>Instrucciones</th><th>Activo</th><th>Acción</th></tr></thead><tbody id="tablaMetodosPago"></tbody></table></div>
+  </div>
 </div>
 
 <div class="modal" id="modalTasas">
@@ -119,6 +129,54 @@ async function rechazarRetiro(id){
   let j=await res.json().catch(()=>({ok:false,msg:'Respuesta inválida'}));
   alert(j.msg || (j.ok?'Retiro rechazado y saldo devuelto':'No se pudo rechazar'));
   if(j.ok) abrirRetiros();
+}
+
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function escAttr(v){return esc(v);}
+function metodoFila(x){
+ const paises=['Perú','Chile','USA','Colombia','México','Ecuador','Argentina','Bolivia'];
+ const opts=paises.map(p=>`<option value="${escAttr(p)}" ${x.pais===p?'selected':''}>${esc(p)}</option>`).join('');
+ return `<tr data-id="${x.id||''}">
+ <td><select id="mp_pais_${x.id||'new'}" style="background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px">${opts}</select></td>
+ <td><input id="mp_nombre_${x.id||'new'}" value="${escAttr(x.nombre||'')}" placeholder="Yape / BCP / Zelle" style="width:120px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_destino_${x.id||'new'}" value="${escAttr(x.destino||'')}" placeholder="Número / correo / cuenta" style="width:180px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_titular_${x.id||'new'}" value="${escAttr(x.titular||'')}" placeholder="Titular" style="width:130px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_banco_${x.id||'new'}" value="${escAttr(x.banco||'')}" placeholder="Banco" style="width:110px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_inst_${x.id||'new'}" value="${escAttr(x.instrucciones||'')}" placeholder="Instrucciones" style="width:180px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_activo_${x.id||'new'}" type="checkbox" ${x.activo!==false?'checked':''}></td>
+ <td><button class="btn btn-green" style="padding:7px 10px" onclick="guardarMetodoPago(${x.id||0})">Guardar</button>${x.id?`<button class="btn btn-red" style="padding:7px 10px;margin-left:4px" onclick="eliminarMetodoPago(${x.id})">X</button>`:''}</td></tr>`;
+}
+async function abrirMetodosPago(){
+ document.getElementById('modalMetodosPago').style.display='flex';
+ document.getElementById('metodosEstado').innerText='Cargando...';
+ try{
+  const r=await fetch('/api/admin/metodos-pago'); const d=await r.json();
+  if(!d.ok){document.getElementById('metodosEstado').innerText=d.msg||'Error';return;}
+  document.getElementById('tablaMetodosPago').innerHTML=d.metodos.map(metodoFila).join('');
+  document.getElementById('metodosEstado').innerText='Edita los datos y pulsa Guardar.';
+ }catch(e){document.getElementById('metodosEstado').innerText='Error: '+e;}
+}
+function agregarMetodoPago(){
+ const id='new_'+Date.now();
+ document.getElementById('tablaMetodosPago').insertAdjacentHTML('beforeend',metodoFila({id:0,pais:'Perú',nombre:'',tipo:'banco',activo:true}));
+ document.getElementById('metodosEstado').innerText='Nuevo método: completa los datos y pulsa Guardar.';
+}
+async function guardarMetodoPago(id){
+ const k=id||'new';
+ const data={id:id||0,pais:document.getElementById('mp_pais_'+k)?.value,nombre:document.getElementById('mp_nombre_'+k)?.value,tipo:'manual',destino:document.getElementById('mp_destino_'+k)?.value,titular:document.getElementById('mp_titular_'+k)?.value,banco:document.getElementById('mp_banco_'+k)?.value,instrucciones:document.getElementById('mp_inst_'+k)?.value,activo:document.getElementById('mp_activo_'+k)?.checked};
+ // For a new row, the DOM key is "new" because the row has no DB id.
+ if(!id){
+   const tr=document.querySelector('#tablaMetodosPago tr:last-child');
+   data.pais=tr.querySelector('select')?.value; data.nombre=tr.querySelectorAll('input')[0]?.value; data.destino=tr.querySelectorAll('input')[1]?.value; data.titular=tr.querySelectorAll('input')[2]?.value; data.banco=tr.querySelectorAll('input')[3]?.value; data.instrucciones=tr.querySelectorAll('input')[4]?.value; data.activo=tr.querySelector('input[type=checkbox]')?.checked;
+ }
+ if(!data.nombre){alert('Escribe el nombre del método');return;}
+ const r=await fetch('/api/admin/metodos-pago',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify(data)}); const j=await r.json();
+ document.getElementById('metodosEstado').innerText=j.msg||''; if(j.ok) abrirMetodosPago(); else alert(j.msg||'No se pudo guardar');
+}
+async function eliminarMetodoPago(id){
+ if(!confirm('¿Eliminar este método de pago?'))return;
+ const r=await fetch('/api/admin/metodos-pago/eliminar',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})}); const j=await r.json();
+ if(!j.ok){alert(j.msg||'No se pudo eliminar');return;} abrirMetodosPago();
 }
 
 async function abrirTasas(){
