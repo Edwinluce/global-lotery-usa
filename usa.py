@@ -219,6 +219,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS sorteos (id SERIAL PRIMARY KEY, fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT, seed TEXT, hash_verificacion TEXT, recaudacion FLOAT, fondo_premios FLOAT, margen_plataforma FLOAT, jackpot FLOAT, tiempo_min INTEGER DEFAULT 60)")
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto FLOAT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id SERIAL PRIMARY KEY, user_id INTEGER, monto FLOAT, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id SERIAL PRIMARY KEY, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id SERIAL PRIMARY KEY, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -229,6 +230,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS sorteos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha_hora_cierre TEXT, animal_ganador INTEGER, estado TEXT, seed TEXT, hash_verificacion TEXT, recaudacion REAL, fondo_premios REAL, margen_plataforma REAL, jackpot REAL, tiempo_min INTEGER DEFAULT 60)")
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto REAL, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto REAL, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -276,6 +278,32 @@ def init_db():
     print("BASE CREADA OK - POSTGRES" if is_postgres() else "BASE CREADA OK - SQLITE")
 
 init_db()
+
+def cargar_tasas_paises():
+    """Carga las tasas persistidas en DB y las mantiene en COUNTRY_CONFIG."""
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        for pais, cfg in COUNTRY_CONFIG.items():
+            tasa=float(cfg.get("units_per_usd", 1.0))
+            if is_postgres():
+                c.execute(q("INSERT INTO config_paises (pais,tasa_usd,actualizado) VALUES (?,?,?) ON CONFLICT (pais) DO NOTHING"), (pais,tasa,datetime.now().isoformat()))
+            else:
+                c.execute(q("INSERT OR IGNORE INTO config_paises (pais,tasa_usd,actualizado) VALUES (?,?,?)"), (pais,tasa,datetime.now().isoformat()))
+        con.commit()
+        c.execute(q("SELECT pais,tasa_usd FROM config_paises"))
+        for pais,tasa in c.fetchall():
+            if pais in COUNTRY_CONFIG and float(tasa)>0:
+                COUNTRY_CONFIG[pais]["units_per_usd"]=float(tasa)
+        con.close()
+        print("TASAS POR PAIS CARGADAS OK")
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        print("ERROR CARGANDO TASAS POR PAIS:",e)
+
+cargar_tasas_paises()
 
 def get_config():
     try:
@@ -839,6 +867,50 @@ def api_admin_control():
         c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO',?)"), (proximo.isoformat(), tiempo))
         con.commit(); con.close()
     return jsonify({"ok":True})
+
+@app.route('/api/admin/tasas')
+def api_admin_tasas():
+    if not session.get('admin'): return jsonify({"ok":False,"msg":"No admin"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor(); c.execute(q("SELECT pais,tasa_usd,actualizado FROM config_paises ORDER BY pais")); rows=c.fetchall(); con.close()
+        data=[]
+        for pais,tasa,actualizado in rows:
+            cfg=COUNTRY_CONFIG.get(pais)
+            if not cfg: continue
+            data.append({"pais":pais,"nombre":cfg["name"],"moneda":cfg["currency"],"simbolo":cfg["symbol"],"tasa_usd":float(tasa),"actualizado":actualizado or ""})
+        return jsonify({"ok":True,"tasas":data})
+    except Exception:
+        if con:
+            try: con.close()
+            except Exception: pass
+        return jsonify({"ok":False,"msg":"No se pudieron cargar las tasas"}),500
+
+@app.route('/api/admin/tasas', methods=['POST'])
+def api_admin_tasas_guardar():
+    if not require_admin(request): return jsonify({"ok":False,"msg":"Sesión administrativa inválida"}),403
+    if not session.get('admin'): return jsonify({"ok":False,"msg":"No admin"}),401
+    d=request.json or {}; pais=str(d.get("pais","")).strip()
+    try: tasa=float(d.get("tasa_usd"))
+    except Exception: return jsonify({"ok":False,"msg":"La tasa debe ser un número válido"}),400
+    if pais not in COUNTRY_CONFIG: return jsonify({"ok":False,"msg":"País no válido"}),400
+    if tasa<=0 or tasa>100000000: return jsonify({"ok":False,"msg":"La tasa debe ser mayor que 0"}),400
+    ahora=datetime.now().isoformat(); con=None
+    try:
+        con=db(); c=con.cursor()
+        if is_postgres():
+            c.execute(q("INSERT INTO config_paises (pais,tasa_usd,actualizado) VALUES (?,?,?) ON CONFLICT (pais) DO UPDATE SET tasa_usd=EXCLUDED.tasa_usd, actualizado=EXCLUDED.actualizado"),(pais,tasa,ahora))
+        else:
+            c.execute(q("INSERT INTO config_paises (pais,tasa_usd,actualizado) VALUES (?,?,?) ON CONFLICT(pais) DO UPDATE SET tasa_usd=excluded.tasa_usd, actualizado=excluded.actualizado"),(pais,tasa,ahora))
+        con.commit(); con.close(); COUNTRY_CONFIG[pais]["units_per_usd"]=tasa
+        cfg=COUNTRY_CONFIG[pais]
+        return jsonify({"ok":True,"msg":f"Tasa actualizada: 1 USD = {format_local(tasa,cfg)}","pais":pais,"tasa_usd":tasa,"actualizado":ahora})
+    except Exception as e:
+        if con:
+            try: con.rollback(); con.close()
+            except Exception: pass
+        print("ERROR GUARDANDO TASA:",e)
+        return jsonify({"ok":False,"msg":"No se pudo guardar la tasa"}),500
 
 @app.route('/api/admin/ganancias')
 def api_admin_ganancias():
