@@ -83,7 +83,26 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 
 <div class="modal" id="modalRetiros"><div class="modal-box"><div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#ff3a3a">💸 Retiros</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div><table id="tablaRetiros"></table></div></div>
 
+
+<div class="card" style="border:1.5px solid #22c55e">
+  <div style="font-weight:900;color:#86efac;margin-bottom:8px">👥 PROGRAMA DE REFERIDOS</div>
+  <div style="font-size:12px;color:#aaa">Un referido queda <b>calificado</b> cuando su primera recarga es aprobada. Cada 2 referidos calificados genera 2 animales gratis.</div>
+  <button class="btn btn-green" style="margin-top:10px" onclick="abrirReferidos()">Ver referidos</button>
+</div>
+<div id="modalReferidos" class="modal"><div class="modal-box"><h2>👥 Referidos</h2><div id="tablaReferidos">Cargando...</div><button class="btn btn-dark" onclick="cerrar()" style="margin-top:12px">Cerrar</button></div></div>
+
 <script>
+async function abrirReferidos(){
+ document.getElementById('modalReferidos').style.display='flex';
+ const box=document.getElementById('tablaReferidos'); box.innerHTML='Cargando...';
+ const r=await fetch('/api/admin/referidos'); const d=await r.json();
+ if(!d.ok){box.innerHTML=d.msg||'No se pudo cargar';return;}
+ if(!d.referidos.length){box.innerHTML='<p style="color:#aaa">Todavía no hay referidos registrados.</p>';return;}
+ let h='<table><tr><th>Quién invita</th><th>Nuevo usuario</th><th>Estado</th><th>Fecha</th></tr>';
+ d.referidos.forEach(x=>{const st=x.status==='qualified'?'✅ CALIFICADO':'⏳ REGISTRADO';h+=`<tr><td>${x.referrer_email}</td><td>${x.referred_email}</td><td>${st}</td><td>${x.qualified_at||x.registered_at}</td></tr>`});
+ h+='</table>'; box.innerHTML=h;
+}
+
 const CSRF_TOKEN = {{ csrf_token|tojson }};
 function cerrar(){document.querySelectorAll('.modal').forEach(m=>m.style.display='none')}
 async function control(a){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({accion:a})});location.reload()}

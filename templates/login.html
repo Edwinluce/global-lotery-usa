@@ -98,7 +98,7 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 <div class="divider"><div></div> o <div></div></div>
 
 <div class="btns">
-<button class="btn-sec" onclick="alert('QR pronto')">📷 Código QR</button>
+<button class="btn-sec" onclick="abrirQR()">📷 Código QR</button>
 <button class="btn-sec" id="btn-register">📝 Registrarse</button>
 </div>
 
@@ -112,18 +112,18 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 
 <!-- MODAL REGISTRO -->
 <div id="modal-registro" class="modal"><div class="modal-box">
-<h3>Crear cuenta nueva</h3><small>Saldo inicial $0.00 • Moneda local según país • Solo mayores de 18 años</small>
+<h3>Crear cuenta nueva</h3><small>Saldo inicial $0.00 • Solo mayores de 18 años</small>
 <input id="reg-email" type="email" placeholder="Correo electrónico *">
 <div class="pais-row">
-<select id="reg-pais"><option value="USA">🇺🇸 Estados Unidos</option><option value="Perú">🇵🇪 Perú</option><option value="Chile">🇨🇱 Chile</option></select>
-<select id="reg-codigo"><option>+1</option><option>+51</option><option>+56</option></select>
+<select id="reg-pais"><option value="USA">🇺🇸 Estados Unidos</option><option value="Perú">🇵🇪 Perú</option><option value="Venezuela">🇻🇪 Venezuela</option><option value="Colombia">🇨🇴 Colombia</option><option value="Chile">🇨🇱 Chile</option><option value="Argentina">🇦🇷 Argentina</option><option value="México">🇲🇽 México</option><option value="España">🇪🇸 España</option><option value="Otro">🌎 Otro</option></select>
+<select id="reg-codigo"><option>+1</option><option>+54</option><option>+52</option><option>+34</option><option>+51</option><option>+58</option><option>+57</option><option>+56</option></select>
 </div>
 <input id="reg-tel" type="tel" placeholder="Número de teléfono * Ej: 999 888 777">
 <input id="reg-pass" type="password" placeholder="Contraseña *">
 <input id="reg-pass2" type="password" placeholder="Verificar contraseña *">
 
 <label class="terms-check">
-<input id="reg-18" type="checkbox" onchange="actualizarBotonRegistro()">
+<input id="reg-18" type="checkbox">
 <span>Confirmo que soy <b>mayor de 18 años</b>.</span>
 </label>
 <label class="terms-check">
@@ -169,6 +169,15 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 <button class="btn-blue" onclick="cerrarTerminos()">Cerrar</button>
 </div></div>
 
+<!-- MODAL QR REGISTRO -->
+<div id="modal-qr" class="modal"><div class="modal-box" style="text-align:center">
+<h3>📷 Registro rápido</h3><small>Escanea este código para abrir directamente el registro.</small>
+<div style="background:#fff;border-radius:14px;padding:12px;margin:14px auto;width:250px"><img id="qrRegistro" alt="QR de registro" style="display:block;width:226px;height:226px;margin:auto"></div>
+<div id="qrUrl" style="font-size:10px;color:#9ecbb6;word-break:break-all;margin-bottom:8px"></div>
+<button class="btn-blue" onclick="copiarLinkRegistro()">📋 Copiar enlace</button>
+<button class="btn-gray" onclick="closeModals()">Cerrar</button>
+</div></div>
+
 <!-- MODAL FORGOT -->
 <div id="modal-forgot" class="modal"><div class="modal-box">
 <h3>Recuperar clave</h3><small>Enviamos nueva clave a tu correo o WhatsApp</small>
@@ -180,14 +189,33 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(80% 60
 
 <script>
 const $=id=>document.getElementById(id);
-function closeModals(){ $('modal-registro').style.display='none'; $('modal-forgot').style.display='none'; $('modal-terminos').style.display='none'; }
+function closeModals(){ $('modal-registro').style.display='none'; $('modal-forgot').style.display='none'; $('modal-terminos').style.display='none'; $('modal-qr').style.display='none'; }
 function abrirTerminos(){ $('modal-terminos').style.display='flex'; }
 function cerrarTerminos(){ $('modal-terminos').style.display='none'; }
 function actualizarBotonRegistro(){ $('btn-crear-cuenta').disabled=!($('reg-18').checked && $('reg-terms').checked); }
 $('btn-register').onclick=()=>$('modal-registro').style.display='flex';
 $('btn-forgot').onclick=()=>$('modal-forgot').style.display='flex';
 window.onclick=e=>{ if(e.target.classList.contains('modal')) closeModals(); };
+window.addEventListener('load',abrirRegistroPorReferencia);
 
+function linkRegistro(ref='GLOBAL'){
+  const base=location.origin+'/login';
+  return base+'?ref='+encodeURIComponent(ref);
+}
+function abrirQR(){
+  const url=linkRegistro('GLOBAL');
+  $('qrUrl').innerText=url;
+  $('qrRegistro').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(url);
+  $('modal-qr').style.display='flex';
+}
+function copiarLinkRegistro(){
+  const url=linkRegistro('GLOBAL');
+  navigator.clipboard?.writeText(url).then(()=>alert('✅ Enlace copiado')).catch(()=>prompt('Copia este enlace:',url));
+}
+function abrirRegistroPorReferencia(){
+  const ref=new URLSearchParams(location.search).get('ref');
+  if(ref){ localStorage.setItem('ref_code',ref.toUpperCase()); $('modal-registro').style.display='flex'; }
+}
 function login(){
  let e=$('email').value.trim(), p=$('pass').value.trim();
  if(!e||!p) return alert('Ingresa usuario y contraseña');
@@ -200,10 +228,10 @@ function registrar(){
  if(!$('reg-18').checked){ err.innerText='Debes confirmar que eres mayor de 18 años.'; err.style.display='block'; return; }
  if(!$('reg-terms').checked){ err.innerText='Debes aceptar los Términos y Condiciones.'; err.style.display='block'; return; }
  if(p1!==p2){ err.innerText='Las claves no coinciden - verifica'; err.style.display='block'; return; }
- if(p1.length<8){ err.innerText='Clave mínimo 8 caracteres'; err.style.display='block'; return; }
+ if(p1.length<6){ err.innerText='Clave mínimo 6 caracteres'; err.style.display='block'; return; }
  let telefono = cod+' '+tel;
  fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-   email:email,password:p1,telefono:telefono,pais:pais,terminos_aceptados:true
+   email:email,password:p1,telefono:telefono,pais:pais,terminos_aceptados:true,ref_code:(localStorage.getItem('ref_code')||'')
  })}).then(r=>r.json()).then(d=>{ if(d.ok){ alert('Cuenta creada con $0.00'); location.href='/'; } else { err.innerText=d.msg||'No se pudo crear la cuenta'; err.style.display='block'; } });
 }
 function enviarRecup(){

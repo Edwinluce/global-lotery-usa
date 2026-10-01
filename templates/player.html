@@ -67,6 +67,18 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 <div><div class="saldo"><small>balance</small> <b id="saldo">$ 0.00</b> <div class="plus" id="btn-plus">+</div> <button class="btn-retiro-top" id="btn-retiro-top">WITHDRAW</button></div>
 <div style="text-align:right;font-size:10px;margin-top:4px">ID: {{ session['user'] if session['user'] else 0 }}</div></div>
 </div>
+<div id="referralCard" style="margin:10px 8px;background:linear-gradient(180deg,#132a22,#0a1a14);border:1.5px solid #22c55e;border-radius:16px;padding:14px;box-shadow:0 0 18px rgba(34,197,94,.12)">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <div><b style="color:#86efac">👥 INVITA Y GANA</b><div style="font-size:11px;color:#aaa;margin-top:3px">Invita a 2 personas. Cuando ambas hagan su primera recarga aprobada, recibes 2 animales gratis.</div></div>
+    <button onclick="abrirMiQR()" style="background:#22c55e;color:#062b14;border:0;border-radius:10px;padding:8px 10px;font-weight:900;cursor:pointer">📷 QR</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+    <div id="refCode" style="flex:1;background:#000;border:1px solid #294d3b;border-radius:10px;padding:9px;font-size:12px;color:#ffcc4d;text-align:center">Cargando código...</div>
+    <button onclick="copiarMiEnlace()" style="background:#202020;color:#fff;border:1px solid #444;border-radius:10px;padding:9px;cursor:pointer">📋</button>
+  </div>
+  <div id="refStats" style="font-size:11px;color:#aaa;margin-top:8px;text-align:center"></div>
+</div>
+
 <div style="display:flex;gap:10px;margin:12px 0">
   <button onclick="verMisApuestas()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">🎯 Mis Jugadas</button>
   <button onclick="verHistorial()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">📜 Últimos que Salieron</button>
@@ -139,6 +151,24 @@ async function verHistorial(){
 </div>
 <button class="btn-volver" onclick="volverSala()">🔄 Back to room</button>
 </div>
+
+
+<div id="modalReferral" class="modal-recarga">
+<div class="box-recarga" style="text-align:center">
+<h3>🎁 Tus 2 animales gratis</h3>
+<small class="sub">Elige dos animales diferentes para el sorteo actual.</small>
+<div id="refAnimalSelectors" style="display:grid;gap:8px;margin-top:12px"></div>
+<button class="btn-pagar" id="btnClaimReferral">🎁 Activar mis 2 animales gratis</button>
+<button class="btn-cancel" onclick="cerrarReferral()">Cerrar</button>
+</div></div>
+<div id="modalMiQR" class="modal-recarga">
+<div class="box-recarga" style="text-align:center">
+<h3>📷 Mi enlace de invitación</h3><small class="sub">Comparte este QR con tus amigos.</small>
+<div style="background:#fff;border-radius:14px;padding:10px;margin:14px auto;width:250px"><img id="miQrImg" style="display:block;width:230px;height:230px;margin:auto"></div>
+<div id="miQrUrl" style="font-size:10px;color:#9ecbb6;word-break:break-all"></div>
+<button class="btn-pagar" onclick="copiarMiEnlace()">📋 Copiar enlace</button>
+<button class="btn-cancel" onclick="cerrarMiQR()">Cerrar</button>
+</div></div>
 
 <div id="modalRecarga" class="modal-recarga">
 <div class="box-recarga">
@@ -214,6 +244,23 @@ function cargarHistorial(){fetch('/api/historial-sorteos').then(r=>r.json()).the
 cargarHistorial();
 function getCierreGlobal(){const unaHora=60*60*1000;return new Date(Math.ceil(Date.now()/unaHora)*unaHora)} let cierre=getCierreGlobal();
 setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){mostrarResultado();cierre=getCierreGlobal();apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cargarHistorial()}},1000);
+let REF_CODE='';
+function referralLink(){ return location.origin+'/login?ref='+encodeURIComponent(REF_CODE); }
+async function cargarReferidos(){
+ try{const r=await fetch('/api/referral');const d=await r.json();if(!d.ok)return;REF_CODE=d.code||'';document.getElementById('refCode').innerText=REF_CODE;document.getElementById('refStats').innerText=`Registrados: ${d.registered}/2 · Calificados: ${d.qualified}/2 · Bonos disponibles: ${d.pending_rewards}`;if(d.pending_rewards>0){let b=document.getElementById('referralCard');b.style.borderColor='#ffcc4d';let btn=document.createElement('button');btn.id='btnClaimReferralOpen';btn.innerText='🎁 Reclamar 2 animales gratis';btn.onclick=abrirReferral;btn.style.cssText='width:100%;margin-top:10px;background:#d4a853;color:#000;border:0;border-radius:11px;padding:10px;font-weight:900;cursor:pointer';b.appendChild(btn)}}catch(e){}
+}
+function copiarMiEnlace(){if(!REF_CODE)return;const u=referralLink();navigator.clipboard?.writeText(u).then(()=>alert('✅ Enlace copiado')).catch(()=>prompt('Copia este enlace:',u));}
+function abrirMiQR(){if(!REF_CODE)return;const u=referralLink();document.getElementById('miQrUrl').innerText=u;document.getElementById('miQrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(u);document.getElementById('modalMiQR').style.display='flex';}
+function cerrarMiQR(){document.getElementById('modalMiQR').style.display='none'}
+function abrirReferral(){
+ const box=document.getElementById('refAnimalSelectors'); box.innerHTML='';
+ for(let i=1;i<=2;i++){const sel=document.createElement('select');sel.className='input-card';sel.id='refAnimal'+i;sel.innerHTML='<option value="">Selecciona animal '+i+'</option>'+animales.map(a=>`<option value="${a[0]}">${a[2]} ${a[1]} (#${String(a[0]).padStart(2,'0')})</option>`).join('');box.appendChild(sel)}
+ document.getElementById('modalReferral').style.display='flex';
+}
+function cerrarReferral(){document.getElementById('modalReferral').style.display='none'}
+document.addEventListener('click',e=>{if(e.target===document.getElementById('modalMiQR'))cerrarMiQR();if(e.target===document.getElementById('modalReferral'))cerrarReferral()});
+document.getElementById('btnClaimReferral').onclick=async()=>{const a=Number(document.getElementById('refAnimal1').value),b=Number(document.getElementById('refAnimal2').value);if(!a||!b||a===b)return alert('Elige dos animales diferentes.');const btn=document.getElementById('btnClaimReferral');btn.disabled=true;const r=await fetch('/api/referral/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({animal_ids:[a,b]})});const d=await r.json();alert(d.msg||'Listo');if(d.ok){cerrarReferral();location.reload()}else btn.disabled=false;};
+
 let montoRecarga=LEVELS.length?Math.max(DEPOSIT_MIN,LEVELS[0]):DEPOSIT_MIN;
 let metodoPagoSeleccionado=null;
 const modalRecarga=document.getElementById('modalRecarga');
@@ -285,6 +332,7 @@ document.getElementById('montoRetiroCustom').placeholder='Otro monto '+SYMBOL+' 
 document.getElementById('btnEnviarRetiro').onclick=async()=>{let banco=document.getElementById('bancoRetiro').value.trim();if(!banco)return alert('Indica tu cuenta o medio de retiro');if(montoRetiro<WITHDRAW_MIN)return alert('El retiro mínimo es '+money(WITHDRAW_MIN));if(montoRetiro>usdToLocal(saldoActual))return alert('Saldo insuficiente');document.getElementById('btnEnviarRetiro').innerText='⏳ Sending...';let res=await fetch('/api/solicitar-retiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto:montoRetiro,banco_info:banco})});let j=await res.json();if(j.ok){alert('✅ Request sent');cerrarRetiro();cargarMisRetiros()}else{alert(j.msg);document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - '+money(montoRetiro)}};
 async function cargarMisRetiros(){let r=await fetch('/api/mis-retiros');let j=await r.json();if(j.length==0){document.getElementById('listaMisRetiros').innerHTML='';document.getElementById('misRetirosTxt').innerText='';return}document.getElementById('listaMisRetiros').innerHTML='<b>My withdrawals:</b><br>'+j.map(x=>`${x.fecha} ${x.monto_local?money(x.monto_local):money(usdToLocal(x.monto||0))} - ${x.estado}<br>`).join('');let pend=j.filter(x=>x.estado=='pendiente');if(pend.length>0)document.getElementById('misRetirosTxt').innerText='⏳ Pending withdrawal '+(pend[0].monto_local?money(pend[0].monto_local):money(usdToLocal(pend[0].monto||0)))}
 cargarMisRetiros();
+cargarReferidos();
 const partidaActual=cierre.getTime();const ultimaPartidaGuardada=localStorage.getItem('ultima_partida');fetch('/api/mis-apuestas-actuales').then(r=>r.json()).then(d=>{if(d.apuestas&&Object.keys(d.apuestas).length>0){let diffRestante=cierre-new Date();if(ultimaPartidaGuardada&&parseInt(ultimaPartidaGuardada)!==partidaActual){localStorage.setItem('ultima_partida',partidaActual);apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();return}if(diffRestante>10000){misApuestasGuardadas=d.apuestas;for(let id in misApuestasGuardadas){let card=document.querySelector(`.card[data-id="${id}"]`);if(card)card.classList.add('selected')}calc();mostrarSalaConteo();localStorage.setItem('ultima_partida',partidaActual)}}});
 </script>
 <!-- BOTON WHATSAPP ICONO -->
