@@ -72,6 +72,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 <div class="modal" id="modalGanancias"><div class="modal-box"><div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">📜 Ganancias</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div><table id="tablaGanancias"></table></div></div>
 
 <div class="modal" id="modalApuestas">
+<div style="background:#111;border:1px solid #333;border-radius:12px;padding:10px;margin-bottom:10px;color:#aaa;font-size:12px">📊 Exposición informativa: muestra apuestas, premio potencial x25 y resultado matemático si ese animal resultara ganador. No modifica ni decide el sorteo.</div>
   <div class="modal-box">
     <div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">🎯 Apuestas Actual - Animales</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
     <div id="totalApuestas" style="margin:12px 0;color:#1ee66d;font-weight:900"></div>
@@ -134,7 +135,7 @@ async function rechazarRetiro(id){
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function escAttr(v){return esc(v);}
 function metodoFila(x){
- const paises=['Perú','Chile','USA','Colombia','México','Ecuador','Argentina','Bolivia'];
+ const paises=['Perú','Chile','USA','Venezuela','Colombia','México','Ecuador','Argentina','Bolivia'];
  const opts=paises.map(p=>`<option value="${escAttr(p)}" ${x.pais===p?'selected':''}>${esc(p)}</option>`).join('');
  return `<tr data-id="${x.id||''}">
  <td><select id="mp_pais_${x.id||'new'}" style="background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px">${opts}</select></td>
@@ -153,7 +154,7 @@ async function abrirMetodosPago(){
   const r=await fetch('/api/admin/metodos-pago'); const d=await r.json();
   if(!d.ok){document.getElementById('metodosEstado').innerText=d.msg||'Error';return;}
   document.getElementById('tablaMetodosPago').innerHTML=d.metodos.map(metodoFila).join('');
-  document.getElementById('metodosEstado').innerText='Edita los datos y pulsa Guardar.';
+  document.getElementById('metodosEstado').innerText='Edita los datos y pulsa Guardar. Venezuela ya está disponible como país activo.';
  }catch(e){document.getElementById('metodosEstado').innerText='Error: '+e;}
 }
 function agregarMetodoPago(){
@@ -219,12 +220,12 @@ async function abrirApuestas(){
      document.getElementById('totalApuestas').innerText=`Sorteo #${data.sorteo_id} - Aún sin apuestas. Apuesta con un usuario para probar.`;
      return;
    }
-   document.getElementById('totalApuestas').innerText=`TOTAL AHORA: S/ ${data.total} | ${data.lista.length} apuestas`;
+   document.getElementById('totalApuestas').innerText=`TOTAL AHORA: $ ${data.total.toFixed ? data.total.toFixed(2) : data.total} USD | ${data.lista.length} apuestas`;
    let max=Math.max(...data.por_animal.map(x=>x.total)); let resumen='<div style="background:#0f0f0f;padding:12px;border-radius:12px">';
-   data.por_animal.forEach(x=>{let pct=max>0?(x.total/max*100):0; resumen+=`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between"><span>🦁 ${x.animal}</span><span>S/ ${x.total} (${x.cantidad})</span></div><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></div>`}); resumen+='</div>';
+   data.por_animal.forEach(x=>{let pct=max>0?(x.total/max*100):0; resumen+=`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between"><span>🦁 ${x.animal}</span><span>$ ${x.total.toFixed ? x.total.toFixed(2) : x.total} USD (${x.cantidad})</span></div><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div><small style="color:#aaa">Premio potencial x25: $ ${Number(x.premio_potencial||0).toFixed(2)} USD · Resultado matemático si gana: $ ${Number(x.resultado_si_gana||0).toFixed(2)} USD</small></div>`}); resumen+='</div>';
    document.getElementById('resumenAnimales').innerHTML=resumen;
-   let html='<tr><th>Hora</th><th>User</th><th>Animal</th><th>Monto</th></tr>';
-   data.lista.forEach(x=>{html+=`<tr><td>${x.fecha}</td><td>${x.email.substring(0,12)}</td><td><b>${x.animal}</b></td><td>S/ ${x.monto}</td></tr>`});
+   let html='<tr><th>Hora</th><th>User</th><th>Animal</th><th>Monto USD</th></tr>';
+   data.lista.forEach(x=>{html+=`<tr><td>${x.fecha}</td><td>${x.email.substring(0,12)}</td><td><b>${x.animal}</b></td><td>$ ${Number(x.monto||0).toFixed(2)}</td></tr>`});
    document.getElementById('tablaApuestas').innerHTML=html;
  }catch(e){document.getElementById('totalApuestas').innerText='Error: '+e}
 }

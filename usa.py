@@ -31,7 +31,9 @@ COUNTRY_CONFIG = {
     "México": {"name":"México","currency":"MXN","symbol":"$","decimals":2,"units_per_usd":18.5,"bet_levels":[10,20,50,100,200],"bet_min":10,"deposit_min":100,"withdraw_min_usd":15},
     "Ecuador": {"name":"Ecuador","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[1,2,5,10],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
     "Argentina": {"name":"Argentina","currency":"ARS","symbol":"$","decimals":2,"units_per_usd":1450.0,"bet_levels":[500,1000,2500,5000],"bet_min":500,"deposit_min":10000,"withdraw_min_usd":15},
-    "Bolivia": {"name":"Bolivia","currency":"BOB","symbol":"Bs","decimals":2,"units_per_usd":6.96,"bet_levels":[5,10,20,50],"bet_min":5,"deposit_min":35,"withdraw_min_usd":15}
+    "Bolivia": {"name":"Bolivia","currency":"BOB","symbol":"Bs","decimals":2,"units_per_usd":6.96,"bet_levels":[5,10,20,50],"bet_min":5,"deposit_min":35,"withdraw_min_usd":15},
+    # Venezuela: tasa inicial de referencia editable desde Admin > Tasas por País.
+    "Venezuela": {"name":"Venezuela","currency":"VES","symbol":"Bs.","decimals":2,"units_per_usd":857.99,"bet_levels":[858,1716,4290,8580,17160],"bet_min":858,"deposit_min":8580,"withdraw_min_usd":15}
 }
 
 try:
@@ -46,7 +48,7 @@ PREMIO_MULTIPLICADOR = 25
 
 # Países habilitados actualmente para operar la plataforma.
 # El resto de COUNTRY_CONFIG queda preparado para futuras expansiones.
-PAISES_ACTIVOS = ["Perú", "Chile", "USA"]
+PAISES_ACTIVOS = ["Perú", "Chile", "USA", "Venezuela"]
 
 def get_country_config(country):
     return COUNTRY_CONFIG.get(country, COUNTRY_CONFIG["USA"])
@@ -326,6 +328,7 @@ def cargar_metodos_pago():
             ("Perú", "BCP", "banco", MI_CUENTA_BCP, MI_NOMBRE_BCP, "BCP", "Puedes indicar cuenta y/o CCI en las instrucciones."),
             ("Chile", "Transferencia bancaria", "banco", "", "", "", "Configura los datos de tu cuenta bancaria desde el panel admin."),
             ("USA", "Zelle", "zelle", "", "", "", "Configura aquí el correo o teléfono de Zelle desde el panel admin."),
+            ("Venezuela", "Pago Móvil", "pago_movil", "", "", "", "Configura banco, teléfono, cédula y demás datos desde el panel admin."),
         ]
         for pais,nombre,tipo,destino,titular,banco,instrucciones in defaults:
             c.execute(q("SELECT id FROM metodos_pago WHERE pais=? AND nombre=? LIMIT 1"),(pais,nombre))
@@ -487,7 +490,7 @@ def api_register():
         password=str(d.get('password',''))
         pais=str(d.get('pais','USA')).strip()
         if pais not in PAISES_ACTIVOS:
-            return jsonify({"ok":False,"msg":"Por ahora solo están habilitados Perú, Chile y Estados Unidos."}),400
+            return jsonify({"ok":False,"msg":"Por ahora están habilitados Perú, Chile, Estados Unidos y Venezuela."}),400
         cfg=get_country_config(pais)
         if '@' not in email or len(email)>254: return jsonify({"ok":False,"msg":"Correo inválido"}),400
         if len(password)<8 or len(password)>128: return jsonify({"ok":False,"msg":"La contraseña debe tener entre 8 y 128 caracteres"}),400
@@ -1142,9 +1145,18 @@ def api_admin_apuestas_actual():
     por_animal=c.fetchall()
     con.close()
     lista=[{"fecha":r[0][11:19] if r[0] and len(r[0])>10 else (r[0] or ""),"email":r[1] or "anon","animal":r[2] or "??","monto":int(float(r[3] or 0))} for r in rows]
-    por_json=[{"animal":r[0],"cantidad":r[1],"total":int(float(r[2]))} for r in por_animal]
+    por_json=[]
+    for r in por_animal:
+        total_animal=float(r[2] or 0)
+        por_json.append({
+            "animal":r[0],
+            "cantidad":r[1],
+            "total":int(total_animal),
+            "premio_potencial":int(total_animal*PREMIO_MULTIPLICADOR),
+            "resultado_si_gana":int(total_real-total_animal*PREMIO_MULTIPLICADOR)
+        })
     total=int(total_real)
-    return jsonify({"lista":lista,"por_animal":por_json,"total":total,"sorteo_id":sid})
+    return jsonify({"lista":lista,"por_animal":por_json,"total":total,"sorteo_id":sid,"multiplicador":PREMIO_MULTIPLICADOR,"nota":"Exposición informativa. El animal ganador se determina de forma independiente y no usa estos valores."})
 
 @app.route('/api/admin/retiros')
 def api_admin_retiros():
