@@ -20,7 +20,7 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 .box small{color:#d4a853;font-size:10px}
 .box b{font-size:11px;display:block}
 .box b.red{color:#ff4444;font-size:18px;font-weight:800}
-.historial{margin:8px;background:#0f1f18;border:1px solid #d4a853;border-radius:12px;padding:10px}
+.pozo-box{margin:8px;background:linear-gradient(180deg,#132a22,#0a1a14);border:2px solid #22c55e;border-radius:14px;padding:12px;text-align:center}.pozo-box small{display:block;color:#d4a853;font-size:10px}.pozo-box b{display:block;color:#ffcc4d;font-size:24px;margin-top:2px}.pozo-box span{display:block;color:#9ecbb6;font-size:10px;margin-top:2px}.historial{margin:8px;background:#0f1f18;border:1px solid #d4a853;border-radius:12px;padding:10px}
 .historial-head{display:flex;justify-content:space-between;align-items:center}
 .historial-items{display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:4px}
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:8px}
@@ -115,6 +115,7 @@ async function verHistorial(){
 <div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
 <div class="box"><small>PLAYING</small><b id="jugadores">In room</b></div>
 </div>
+<div class="pozo-box"><small>🏆 POZO A REPARTIR</small><b id="pozoActual">$ 0.00</b><span>75% de la recaudación · 25% para la plataforma</span></div>
 <div class="historial">
 <div class="historial-head">
 <b style="font-size:11px;color:#d4a853">📜 LAST WINNERS</b>
@@ -227,7 +228,7 @@ let saldoActual=0; try{saldoActual=parseFloat("{{ saldo|default(0) }}")||0;}catc
 let periodoId="{{ sorteo[0] if sorteo else 0 }}";
 document.getElementById('saldo').innerText=money(usdToLocal(saldoActual));
 document.getElementById('paisMoneda').innerText=GAME_CONFIG.name+' · '+CURRENCY;
-document.getElementById('rangoApuesta').innerText='Min '+money(LEVELS[0])+' · Premio: 75% de lo recaudado';
+document.getElementById('rangoApuesta').innerText='Min '+money(LEVELS[0]);
 const animales=[[1,"Perro","🐶"],[2,"Gato","🐱"],[3,"Ratón","🐭"],[4,"Conejo","🐰"],[5,"Zorro","🦊"],[6,"Tigre","🐯"],[7,"León","🦁"],[8,"Elefante","🐘"],[9,"Mono","🐒"],[10,"Gallina","🐔"],[11,"Gallo","🐓"],[12,"Cerdo","🐷"],[13,"Vaca","🐄"],[14,"Caballo","🐴"],[15,"Alpaca","🦙"],[16,"Vicuña","🦙"],[17,"Cóndor","🦅"],[18,"Oso","🐻"],[19,"Puma","🦁"],[20,"Gallito","🐦"],[21,"Caimán","🐊"],[22,"Serpiente","🐍"],[23,"Rana","🐸"],[24,"Delfin","🐬"],[25,"Guacamayo","🦜"]];
 let monto=LEVELS[0], apuestas={}, misApuestasGuardadas={};
 const grid=document.getElementById('grid');
@@ -238,10 +239,18 @@ function calc(){ let t=Object.values(apuestas).reduce((a,b)=>a+Number(b),0); doc
 document.getElementById('btn-limpiar').onclick=()=>{apuestas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc()};
 document.getElementById('btn-confirmar').onclick=()=>{ let total=calc(); if(total<=0)return alert('Elige un animal'); let totalUsd=localToUsd(total); if(saldoActual<totalUsd){alert('Saldo insuficiente');abrirRecarga();return;} misApuestasGuardadas={...apuestas}; fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apuestas})}).then(r=>r.json()).then(d=>{if(d.ok){saldoActual-=Number(d.total_usd||totalUsd);document.getElementById('saldo').innerText=money(usdToLocal(saldoActual));mostrarSalaConteo()}else alert(d.msg||'No se pudo registrar')}); };
 function mostrarSalaConteo(){ let html='';let total=0;for(let id in misApuestasGuardadas){let a=animales.find(x=>x[0]==id);if(a){html+=`<div>${a[2]} ${a[1]} ${money(misApuestasGuardadas[id])}</div>`;total+=Number(misApuestasGuardadas[id])}}document.getElementById('listaElegidos').innerHTML=html;document.getElementById('totalSala').innerText=money(total);document.getElementById('modalSala').style.display='flex'; }
-function mostrarResultado(){document.getElementById('modalSala').style.display='none';fetch('/api/ultimo-resultado').then(r=>r.json()).then(d=>{let idGanador=d.ganador!==null?parseInt(d.ganador):(Math.floor(Math.random()*25)+1);let g=animales.find(x=>x[0]==idGanador)||animales[6];document.getElementById('ganadorEmoji').innerText=g[2];document.getElementById('ganadorNombre').innerText=g[1].toUpperCase();document.getElementById('ganadorNum').innerText='N° '+String(g[0]).padStart(2,'0');if(misApuestasGuardadas[g[0]]){let bet=Number(misApuestasGuardadas[g[0]]);document.getElementById('ganasteTexto').innerHTML=`🎉 <b style="color:#22c55e">YOU WON!</b><br>You bet ${money(bet)} on ${g[1]}<br>Prize: 75% del fondo de premios, dividido entre los ganadores` ;fetch('/api/saldo').then(r=>r.json()).then(s=>{saldoActual=Number(s.saldo||0);document.getElementById('saldo').innerText=money(Number(s.saldo_local||usdToLocal(saldoActual)))})}else document.getElementById('ganasteTexto').innerHTML=`😢 Not this time<br>Winner <b style="color:#ffcc4d">${g[1]}</b>`;document.getElementById('modalResultado').style.display='flex';cargarHistorial()});}
+function mostrarResultado(){document.getElementById('modalSala').style.display='none';fetch('/api/ultimo-resultado').then(r=>r.json()).then(d=>{let idGanador=d.ganador!==null?parseInt(d.ganador):(Math.floor(Math.random()*25)+1);let g=animales.find(x=>x[0]==idGanador)||animales[6];document.getElementById('ganadorEmoji').innerText=g[2];document.getElementById('ganadorNombre').innerText=g[1].toUpperCase();document.getElementById('ganadorNum').innerText='N° '+String(g[0]).padStart(2,'0');if(misApuestasGuardadas[g[0]]){let bet=Number(misApuestasGuardadas[g[0]]);document.getElementById('ganasteTexto').innerHTML=`🎉 <b style="color:#22c55e">YOU WON!</b><br>You bet ${money(bet)} on ${g[1]}<br>Tu premio se calcula según el pozo disponible y se divide en partes iguales entre los ganadores` ;fetch('/api/saldo').then(r=>r.json()).then(s=>{saldoActual=Number(s.saldo||0);document.getElementById('saldo').innerText=money(Number(s.saldo_local||usdToLocal(saldoActual)))})}else document.getElementById('ganasteTexto').innerHTML=`😢 Not this time<br>Winner <b style="color:#ffcc4d">${g[1]}</b>`;document.getElementById('modalResultado').style.display='flex';cargarHistorial()});}
 function volverSala(){document.getElementById('modalResultado').style.display='none';document.getElementById('modalSala').style.display='none';apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cierre=getCierreGlobal();cargarHistorial();}
 function cargarHistorial(){fetch('/api/historial-sorteos').then(r=>r.json()).then(h=>{let cont=document.getElementById('historialAnimales');cont.innerHTML='';if(!h||h.length==0){cont.innerHTML='<small style="color:#555">No draws yet</small>';return}h.slice(0,20).forEach(row=>{let id=row.animal_ganador;let a=animales.find(x=>x[0]==id);if(!a)return;let div=document.createElement('div');div.style.cssText='background:#111;border:1px solid #333;border-radius:10px;padding:6px 8px;text-align:center;min-width:62px;flex-shrink:0';div.innerHTML=`<div style="font-size:22px">${a[2]}</div><div style="font-size:8px;color:#ffcc4d">${a[1]}</div><div style="font-size:9px;color:#aaa">#${String(a[0]).padStart(2,'0')}</div>`;cont.appendChild(div)})});}
 cargarHistorial();
+async function cargarPozo(){
+ try{
+  const r=await fetch('/api/pozo-actual'); const d=await r.json();
+  if(d.ok){ document.getElementById('pozoActual').innerText=money(Number(d.pozo_local||0)); }
+ }catch(e){}
+}
+cargarPozo();
+setInterval(cargarPozo,5000);
 function getCierreGlobal(){const unaHora=60*60*1000;return new Date(Math.ceil(Date.now()/unaHora)*unaHora)} let cierre=getCierreGlobal();
 setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){mostrarResultado();cierre=getCierreGlobal();apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cargarHistorial()}},1000);
 let REF_CODE='';
