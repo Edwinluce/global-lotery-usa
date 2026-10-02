@@ -189,7 +189,7 @@ async function verHistorial(){
 <input type="file" id="voucherFile" accept="image/jpeg,image/png,image/webp" class="input-card">
 <input id="operacion" class="input-card" placeholder="Número de operación / referencia *">
 <input id="cardNombre" class="input-card" placeholder="Nombre de quien realizó el pago *">
-<button type="button" class="btn-pagar" id="btnPagar">✅ Enviar solicitud</button>
+<button type="button" class="btn-pagar" id="btnPagar">✅ Ya realicé el pago — Enviar comprobante</button>
 <button type="button" class="btn-cancel" onclick="cerrarRecarga()">Cancel</button>
 <div class="secure">Verified account weinderlyn@gmail.com - Approved in 5 min</div>
 </div>
@@ -286,25 +286,25 @@ const montosRecarga=[DEPOSIT_MIN,DEPOSIT_MIN*2,DEPOSIT_MIN*5,DEPOSIT_MIN*10];
 const montosBox=document.getElementById('montosBtn');
 montosRecarga.forEach((v,i)=>{
  let b=document.createElement('button');b.type='button';b.dataset.v=v;b.textContent=money(v);if(i===0)b.classList.add('active');
- b.onclick=()=>{document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRecarga=Number(v);document.getElementById('montoCustom').value='';document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga);document.getElementById('montoMostrar').innerText=money(montoRecarga)};
+ b.onclick=()=>{document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRecarga=Number(v);document.getElementById('montoCustom').value='';document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';document.getElementById('montoMostrar').innerText=money(montoRecarga)};
  montosBox.appendChild(b);
 });
 document.getElementById('montoCustom').placeholder='Otro monto '+SYMBOL+' (mín. '+money(DEPOSIT_MIN)+')';
-document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga);
+document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';
 document.getElementById('montoMostrar').innerText=money(montoRecarga);
-document.getElementById('montoCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRecarga=v;document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(v);document.getElementById('montoMostrar').innerText=money(v)}};
+document.getElementById('montoCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRecarga=v;document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';document.getElementById('montoMostrar').innerText=money(v)}};
 
 async function cargarMetodosPago(){
  const box=document.getElementById('paymentMethods'); const info=document.getElementById('paymentInfo');
- box.innerHTML='<div style="color:#aaa;font-size:11px">Cargando...</div>'; info.innerHTML='Selecciona un método para ver los datos de depósito.'; metodoPagoSeleccionado=null;
+ box.innerHTML='<div style="color:#aaa;font-size:11px">Cargando...</div>'; info.innerHTML=''; metodoPagoSeleccionado=null;
  try{
    const r=await fetch('/api/metodos-pago'); const d=await r.json();
-   if(!d.ok || !d.metodos || !d.metodos.length){box.innerHTML='<div style="color:#ffcc4d;font-size:12px">⚠️ No hay métodos de pago configurados para '+escHtml(d.pais||GAME_CONFIG.pais)+'.</div>';return;}
+   if(!d.ok || !d.metodos || !d.metodos.length){box.innerHTML='<div style="color:#ffcc4d;font-size:12px">⚠️ No hay un método de pago configurado para '+escHtml(d.pais||GAME_CONFIG.pais)+'.</div>';return;}
    box.innerHTML='';
    d.metodos.forEach((m,i)=>{
      const b=document.createElement('button'); b.type='button';
-     b.style.cssText='background:#1a3328;border:1px solid #d4a853;border-radius:12px;padding:10px;color:#fff;font-weight:800;cursor:pointer;text-align:left';
-     b.innerHTML=escHtml(m.nombre)+' <small style="opacity:.7">('+escHtml(m.tipo)+')</small>';
+     b.style.cssText='background:linear-gradient(180deg,#1f6b43,#12452c);border:1px solid #d4a853;border-radius:12px;padding:13px;color:#fff;font-weight:900;cursor:pointer;text-align:center;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25)';
+     b.innerHTML=escHtml(m.texto_boton || ('💳 PAGAR CON '+m.nombre.toUpperCase()));
      b.onclick=()=>seleccionarMetodoPago(m,b); box.appendChild(b);
      if(i===0) setTimeout(()=>seleccionarMetodoPago(m,b),0);
    });
@@ -312,15 +312,23 @@ async function cargarMetodosPago(){
 }
 function seleccionarMetodoPago(m,btn){
  metodoPagoSeleccionado=m;
- document.querySelectorAll('#paymentMethods button').forEach(x=>{x.style.background='#1a3328';x.style.color='#fff'});
- btn.style.background='#d4a853';btn.style.color='#000';
+ document.querySelectorAll('#paymentMethods button').forEach(x=>{x.style.background='linear-gradient(180deg,#1f6b43,#12452c)';x.style.color='#fff'});
+ btn.style.background='linear-gradient(180deg,#d4a853,#9c7420)';btn.style.color='#000';
  let html='<b style="color:#ffcc4d">'+escHtml(m.nombre)+'</b><br>';
  if(m.destino) html+='<b>Destino:</b> '+escHtml(m.destino)+'<br>';
  if(m.titular) html+='<b>Titular:</b> '+escHtml(m.titular)+'<br>';
  if(m.banco) html+='<b>Banco:</b> '+escHtml(m.banco)+'<br>';
  if(m.instrucciones) html+='<span style="color:#aaa">'+escHtml(m.instrucciones)+'</span><br>';
- if(m.destino) html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 Copiar destino</button>';
+ if(m.enlace){
+   html+='<button type="button" class="btn-pagar" style="margin-top:10px" onclick="abrirEnlacePago()">'+escHtml(m.texto_boton || ('💳 PAGAR CON '+m.nombre.toUpperCase()))+'</button>';
+ } else if(m.destino){
+   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 Copiar datos de pago</button>';
+ }
  document.getElementById('paymentInfo').innerHTML=html;
+}
+function abrirEnlacePago(){
+ if(!metodoPagoSeleccionado?.enlace)return;
+ window.open(metodoPagoSeleccionado.enlace,'_blank','noopener,noreferrer');
 }
 function copiarDestino(){if(metodoPagoSeleccionado?.destino){navigator.clipboard.writeText(metodoPagoSeleccionado.destino);alert('✅ Datos copiados')}}
 
@@ -331,8 +339,8 @@ document.getElementById('btnPagar').onclick=()=>{
  let nombre=document.getElementById('cardNombre').value.trim();if(!nombre)return alert('Ingresa el nombre de quien realizó el pago');
  let fd=new FormData();fd.append('monto',montoRecarga);fd.append('metodo_pago_id',metodoPagoSeleccionado.id);fd.append('operacion',op);fd.append('nombre',nombre);
  let file=document.getElementById('voucherFile').files[0];if(file)fd.append('voucher',file);
- document.getElementById('btnPagar').innerText='⏳ Enviando...';
- fetch('/api/recarga-bcp',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{alert(d.msg);if(d.ok){cerrarRecarga();document.getElementById('operacion').value='';document.getElementById('cardNombre').value='';document.getElementById('voucherFile').value='';}document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga)}).catch(()=>{alert('No se pudo enviar la solicitud');document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga)});
+ document.getElementById('btnPagar').innerText='⏳ Enviando comprobante...';
+ fetch('/api/recarga-bcp',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{alert(d.msg);if(d.ok){cerrarRecarga();document.getElementById('operacion').value='';document.getElementById('cardNombre').value='';document.getElementById('voucherFile').value='';}document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante'}).catch(()=>{alert('No se pudo enviar la solicitud');document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante'});
 };
 
 let montoRetiro=Math.max(WITHDRAW_MIN,LEVELS[0]); const modalRetiro=document.getElementById('modalRetiro'); function abrirRetiro(){document.getElementById('saldoModalRetiro').innerText=money(usdToLocal(saldoActual));modalRetiro.style.display='flex';cargarMisRetiros()} function cerrarRetiro(){modalRetiro.style.display='none'} document.getElementById('btn-retiro-top').onclick=abrirRetiro;

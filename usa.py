@@ -225,7 +225,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto FLOAT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id SERIAL PRIMARY KEY, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id SERIAL PRIMARY KEY, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, texto_boton TEXT, enlace TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id SERIAL PRIMARY KEY, user_id INTEGER, monto FLOAT, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id SERIAL PRIMARY KEY, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id SERIAL PRIMARY KEY, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -240,7 +240,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto REAL, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, texto_boton TEXT, enlace TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto REAL, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -266,6 +266,8 @@ def init_db():
         ("recargas_bcp", "metodo_pago_nombre", "TEXT"),
         ("recargas_bcp", "metodo_pago_destino", "TEXT"),
         ("recargas_bcp", "nombre_remitente", "TEXT"),
+        ("metodos_pago", "texto_boton", "TEXT"),
+        ("metodos_pago", "enlace", "TEXT"),
         ("retiros", "monto_local", "REAL"),
         ("retiros", "moneda", "TEXT"),
         ("retiros", "fx_units_per_usd", "REAL")
@@ -329,22 +331,27 @@ def cargar_metodos_pago():
         con=db(); c=con.cursor()
         # Mantiene la información que ya estaba configurada en el proyecto para Perú.
         defaults = [
-            ("Perú", "Yape", "billetera", "", "", "", "Configura aquí el número Yape desde el panel admin."),
-            ("Perú", "BCP", "banco", MI_CUENTA_BCP, MI_NOMBRE_BCP, "BCP", "Puedes indicar cuenta y/o CCI en las instrucciones."),
-            ("Chile", "Transferencia bancaria", "banco", "", "", "", "Configura los datos de tu cuenta bancaria desde el panel admin."),
-            ("USA", "Zelle", "zelle", "", "", "", "Configura aquí el correo o teléfono de Zelle desde el panel admin."),
-            ("Venezuela", "Pago Móvil", "billetera", "", "", "", "Configura aquí los datos de Pago Móvil desde el panel admin."),
+            ("Perú", "Yape", "billetera", "", "", "", "Configura aquí el número Yape desde el panel admin.", "💚 PAGAR CON YAPE"),
+            ("Perú", "BCP", "banco", MI_CUENTA_BCP, MI_NOMBRE_BCP, "BCP", "Puedes indicar cuenta y/o CCI en las instrucciones.", "🏦 PAGAR CON BCP"),
+            ("Chile", "Tenpo", "billetera", "", "", "Tenpo", "Configura aquí tu enlace de cobro o los datos de Tenpo desde el panel admin.", "📲 PAGAR CON TENPO"),
+            ("Chile", "Transferencia bancaria", "banco", "", "", "", "Configura los datos de tu cuenta bancaria desde el panel admin.", "🏦 PAGAR POR TRANSFERENCIA"),
+            ("USA", "PayPal", "paypal", "", "", "PayPal", "Configura aquí tu enlace de PayPal desde el panel admin.", "💳 COMPRAR CON PAYPAL"),
+            ("USA", "Zelle", "zelle", "", "", "", "Configura aquí el correo o teléfono de Zelle desde el panel admin.", "💳 PAGAR CON ZELLE"),
+            ("Venezuela", "Pago Móvil", "billetera", "", "", "", "Configura aquí los datos o enlace de Pago Móvil desde el panel admin.", "📲 PAGAR CON PAGO MÓVIL"),
         ]
-        for pais,nombre,tipo,destino,titular,banco,instrucciones in defaults:
+        for pais,nombre,tipo,destino,titular,banco,instrucciones,texto_boton in defaults:
             c.execute(q("SELECT id FROM metodos_pago WHERE pais=? AND nombre=? LIMIT 1"),(pais,nombre))
-            if not c.fetchone():
-                ahora=datetime.now().isoformat()
-                if is_postgres():
-                    c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado) VALUES (?,?,?,?,?,?,?,1,?)"),
-                              (pais,nombre,tipo,destino,titular,banco,instrucciones,ahora))
-                else:
-                    c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado) VALUES (?,?,?,?,?,?,?,1,?)"),
-                              (pais,nombre,tipo,destino,titular,banco,instrucciones,ahora))
+            existente=c.fetchone()
+            ahora=datetime.now().isoformat()
+            if not existente:
+                c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,texto_boton,enlace,activo,actualizado) VALUES (?,?,?,?,?,?,?,?,?,1,?)"),
+                          (pais,nombre,tipo,destino,titular,banco,instrucciones,texto_boton,"",ahora))
+            else:
+                # Solo completa el texto del botón si aún está vacío; respeta cambios del admin.
+                try:
+                    c.execute(q("UPDATE metodos_pago SET texto_boton=? WHERE id=? AND COALESCE(TRIM(texto_boton),'')=''"),(texto_boton,existente[0]))
+                except Exception:
+                    pass
         con.commit(); con.close()
     except Exception as e:
         if con:
@@ -695,14 +702,15 @@ def api_metodos_pago():
         r=c.fetchone()
         pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'
         c.execute(q("""
-            SELECT id,nombre,tipo,destino,titular,banco,instrucciones
+            SELECT id,nombre,tipo,destino,titular,banco,instrucciones,texto_boton,enlace
             FROM metodos_pago
-            WHERE pais=? AND activo=1 AND TRIM(COALESCE(destino,''))<>''
+            WHERE pais=? AND activo=1
+              AND (TRIM(COALESCE(destino,''))<>'' OR TRIM(COALESCE(enlace,''))<>'')
             ORDER BY id
         """),(pais,))
         rows=c.fetchall(); con.close()
         return jsonify({"ok":True,"pais":pais,"metodos":[
-            {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or ""}
+            {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or "","texto_boton":x[7] or "","enlace":x[8] or ""}
             for x in rows
         ]})
     except Exception as e:
@@ -1121,12 +1129,12 @@ def api_admin_metodos_pago():
     try:
         con=db(); c=con.cursor()
         c.execute(q("""
-            SELECT id,pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado
+            SELECT id,pais,nombre,tipo,destino,titular,banco,instrucciones,texto_boton,enlace,activo,actualizado
             FROM metodos_pago ORDER BY pais,id
         """))
         rows=c.fetchall(); con.close()
         return jsonify({"ok":True,"metodos":[
-            {"id":r[0],"pais":r[1],"nombre":r[2],"tipo":r[3],"destino":r[4] or "","titular":r[5] or "","banco":r[6] or "","instrucciones":r[7] or "","activo":bool(r[8]),"actualizado":r[9] or ""}
+            {"id":r[0],"pais":r[1],"nombre":r[2],"tipo":r[3],"destino":r[4] or "","titular":r[5] or "","banco":r[6] or "","instrucciones":r[7] or "","texto_boton":r[8] or "","enlace":r[9] or "","activo":bool(r[10]),"actualizado":r[11] or ""}
             for r in rows
         ]})
     except Exception as e:
@@ -1151,6 +1159,8 @@ def api_admin_metodos_pago_guardar():
         titular=str(d.get('titular','')).strip()[:120]
         banco=str(d.get('banco','')).strip()[:100]
         instrucciones=str(d.get('instrucciones','')).strip()[:300]
+        texto_boton=str(d.get('texto_boton','')).strip()[:80]
+        enlace=str(d.get('enlace','')).strip()[:500]
         activo=1 if bool(d.get('activo',True)) else 0
     except Exception:
         return jsonify({"ok":False,"msg":"Datos inválidos"}),400
@@ -1158,17 +1168,19 @@ def api_admin_metodos_pago_guardar():
         return jsonify({"ok":False,"msg":"País no válido"}),400
     if not nombre or not tipo:
         return jsonify({"ok":False,"msg":"Nombre y tipo son obligatorios"}),400
+    if enlace and not (enlace.startswith('https://') or enlace.startswith('http://')):
+        return jsonify({"ok":False,"msg":"El enlace debe comenzar con https:// o http://"}),400
     ahora=datetime.now().isoformat(); con=None
     try:
         con=db(); c=con.cursor()
         if mid>0:
-            c.execute(q("UPDATE metodos_pago SET pais=?,nombre=?,tipo=?,destino=?,titular=?,banco=?,instrucciones=?,activo=?,actualizado=? WHERE id=?"),
-                      (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,ahora,mid))
+            c.execute(q("UPDATE metodos_pago SET pais=?,nombre=?,tipo=?,destino=?,titular=?,banco=?,instrucciones=?,texto_boton=?,enlace=?,activo=?,actualizado=? WHERE id=?"),
+                      (pais,nombre,tipo,destino,titular,banco,instrucciones,texto_boton,enlace,activo,ahora,mid))
             if c.rowcount != 1:
                 con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Método no encontrado"}),404
         else:
-            c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado) VALUES (?,?,?,?,?,?,?,?,?)"),
-                      (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,ahora))
+            c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,texto_boton,enlace,activo,actualizado) VALUES (?,?,?,?,?,?,?,?,?,?,?)"),
+                      (pais,nombre,tipo,destino,titular,banco,instrucciones,texto_boton,enlace,activo,ahora))
             mid=c.lastrowid if not is_postgres() else None
         con.commit(); con.close()
         return jsonify({"ok":True,"msg":"Método de pago guardado","id":mid})
