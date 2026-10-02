@@ -418,16 +418,18 @@ def sortear():
             c.execute(q("SELECT nombre FROM animales WHERE id=?"),(ganador,))
             animal_ganador=c.fetchone()[0]
 
-            # Regla de la app: cada apuesta que acierta paga x25.
+            # Regla nueva: el 75% de lo recaudado se reparte en partes iguales
+            # entre todos los usuarios que acertaron el animal ganador.
             c.execute(q("SELECT usuario_id,SUM(monto) FROM apuestas WHERE sorteo_id=? AND animal_id=? GROUP BY usuario_id"),(sid,ganador))
             ganadores=c.fetchall()
+            premio_por_ganador = (fondo / len(ganadores)) if ganadores else 0.0
             premios=[]
             for uid,apostado_usd in ganadores:
-                premio=float(apostado_usd or 0) * PREMIO_MULTIPLICADOR
+                premio=float(premio_por_ganador)
                 premios.append([uid,premio])
             for uid,premio in premios:
                 c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"),(premio,uid))
-                registrar_movimiento(c, uid, 'PREMIO', premio, f'sorteo:{sid}', f'Premio x{PREMIO_MULTIPLICADOR} por acertar {animal_ganador}')
+                registrar_movimiento(c, uid, 'PREMIO', premio, f'sorteo:{sid}', f'Premio: 75% de la recaudación dividido entre {len(ganadores)} ganador(es)')
             if ganadores:
                 c.execute(q("UPDATE sorteos SET estado='PAGADO' WHERE id=?"),(sid,))
             else:
@@ -448,7 +450,7 @@ def sortear():
                 acierto_usd=float(c.fetchone()[0] or 0)
 
                 if acierto_usd>0:
-                    premio_usd=acierto_usd*PREMIO_MULTIPLICADOR
+                    premio_usd=premio_por_ganador
                     c.execute(q("SELECT saldo FROM usuarios WHERE id=?"),(uid,))
                     saldo_actual_usd=float(c.fetchone()[0] or 0)
                     premio_local=usd_to_local(premio_usd,cfg)
@@ -721,7 +723,7 @@ def apostar_multiple():
         enviar_correo_async(u[1],f"Confirmación de tu apuesta - Sorteo #{sid}",
             f"Hola,\n\nTu apuesta fue registrada correctamente.\n\n"
             f"Moneda: {cfg['currency']}\nAnimales elegidos:\n"+"\n".join(nombres)+
-            f"\n\nTotal apostado: {format_local(total_local,cfg)}\nPremio por acierto: x{PREMIO_MULTIPLICADOR}\n\nGloballotery")
+            f"\n\nTotal apostado: {format_local(total_local,cfg)}\nPremio: 75% de la recaudación, dividido en partes iguales entre los ganadores\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Apuesta registrada y correo enviado","total_local":total_local,"total_usd":total_usd,"moneda":cfg['currency']})
     except Exception as e:
         if con:
