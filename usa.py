@@ -841,6 +841,31 @@ def api_historial_global():
     rows=c.fetchall(); con.close()
     return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "","ganador":r[2],"recaudado":r[3]} for r in rows])
 
+
+@app.route('/api/estado-sala')
+def api_estado_sala():
+    if 'user' not in session:
+        return jsonify({"ok":False,"msg":"No logueado"}),401
+    try:
+        pausado, tiempo_min = get_config()
+        con=db(); c=con.cursor()
+        c.execute(q("SELECT id,fecha_hora_cierre,estado FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+        s=c.fetchone()
+        con.close()
+        if not s:
+            return jsonify({"ok":True,"sorteo_id":0,"cierre":"","estado":"SIN_SORTEO","pausado":pausado,"tiempo_min":tiempo_min})
+        return jsonify({
+            "ok":True,
+            "sorteo_id":int(s[0]),
+            "cierre":s[1] or "",
+            "estado":s[2] or "ABIERTO",
+            "pausado":bool(pausado),
+            "tiempo_min":int(tiempo_min)
+        })
+    except Exception as e:
+        print("ERROR ESTADO SALA:", e)
+        return jsonify({"ok":False,"msg":"No se pudo consultar el estado de la sala"}),500
+
 @app.route('/api/historial-sorteos')
 def api_historial_sorteos():
     con=db(); c=con.cursor()
@@ -913,6 +938,90 @@ def admin_panel():
     pagado_75 = int(recaudado*0.75)
     estado = "PAUSADO" if pausado else "ABIERTO"
     return render_template('admin.html', sorteo_actual=sorteo_actual, recargas_pendientes=recargas, bcp_cuenta=MI_CUENTA_BCP, estado=estado, tiempo_min=tiempo_min, recaudado=recaudado, tu_25=tu_25, pagado_75=pagado_75, num_usuarios=num_usuarios, recargas_count=len(recargas), pausado=pausado, csrf_token=session.get('admin_csrf',''))
+
+
+@app.route('/api/admin/resumen')
+def api_admin_resumen():
+    if not session.get('admin'):
+        return jsonify({"ok":False,"msg":"No admin"}),401
+    con=None
+    try:
+        pausado, tiempo_min = get_config()
+        con=db(); c=con.cursor()
+        c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+        row=c.fetchone()
+        sid=int(row[0]) if row else 0
+
+        c.execute(q("SELECT COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=?"), (sid,))
+        recaudado=float(c.fetchone()[0] or 0)
+
+        c.execute(q("SELECT COUNT(*) FROM usuarios"))
+        usuarios=int(c.fetchone()[0] or 0)
+
+        c.execute(q("SELECT COUNT(*) FROM recargas_bcp WHERE estado='pendiente'"))
+        recargas=int(c.fetchone()[0] or 0)
+
+        cierre=""
+        if sid:
+            c.execute(q("SELECT fecha_hora_cierre FROM sorteos WHERE id=?"), (sid,))
+            rr=c.fetchone()
+            cierre=rr[0] if rr else ""
+
+        con.close()
+        return jsonify({
+            "ok":True,
+            "sorteo_id":sid,
+            "recaudado":int(recaudado),
+            "tu_25":int(recaudado*0.25),
+            "pagado_75":int(recaudado*0.75),
+            "usuarios":usuarios,
+            "recargas":recargas,
+            "pausado":bool(pausado),
+            "estado":"PAUSADO" if pausado else "ABIERTO",
+            "tiempo_min":int(tiempo_min),
+            "cierre":cierre
+        })
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        print("ERROR RESUMEN ADMIN:",e)
+        return jsonify({"ok":False,"msg":"No se pudo actualizar el panel"}),500
+
+@app.route('/api/admin/recargas-pendientes')
+def api_admin_recargas_pendientes():
+    if not session.get('admin'):
+        return jsonify({"ok":False,"msg":"No admin"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        c.execute(q("""
+            SELECT r.id,r.user_id,r.monto,r.operacion,r.estado,r.fecha,r.voucher,
+                   r.monto_local,r.moneda,r.metodo_pago_nombre,r.metodo_pago_destino,
+                   r.nombre_remitente,u.email
+            FROM recargas_bcp r
+            LEFT JOIN usuarios u ON u.id=r.user_id
+            WHERE r.estado='pendiente'
+            ORDER BY r.id DESC
+        """))
+        rows=c.fetchall()
+        con.close()
+        return jsonify({
+            "ok":True,
+            "recargas":[{
+                "id":r[0],"email":r[12] or "-","monto":r[2],
+                "monto_local":r[7],"moneda":r[8] or "USD",
+                "operacion":r[3],"metodo":r[9] or "-",
+                "destino":r[10] or "","remitente":r[11] or "-",
+                "voucher":r[6] or ""
+            } for r in rows]
+        })
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        print("ERROR RECARGAS ADMIN:",e)
+        return jsonify({"ok":False,"msg":"No se pudieron cargar las recargas"}),500
 
 @app.route('/api/admin/aprobar-recarga', methods=['POST'])
 def aprobar_recarga():

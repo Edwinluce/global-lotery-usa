@@ -113,6 +113,9 @@ async function verHistorial(){
   document.getElementById('contenidoHistorial').innerHTML=html || 'Aún no hay sorteos finalizados';
 }
 </script>
+
+<div id="autoSalaEstado" style="display:none;margin:8px;background:#321010;border:1px solid #ff3a3a;color:#ff8a8a;border-radius:12px;padding:9px;text-align:center;font-size:12px;font-weight:800"></div>
+
 <div class="info">
 <div class="box"><small>CURRENT PERIOD</small><b id="periodo">{{ sorteo[0] if sorteo else 0 }}</b></div>
 <div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
@@ -338,7 +341,7 @@ function abrirReferral(){
 }
 function cerrarReferral(){document.getElementById('modalReferral').style.display='none'}
 document.addEventListener('click',e=>{if(e.target===document.getElementById('modalMiQR'))cerrarMiQR();if(e.target===document.getElementById('modalReferral'))cerrarReferral()});
-document.getElementById('btnClaimReferral').onclick=async()=>{const a=Number(document.getElementById('refAnimal1').value),b=Number(document.getElementById('refAnimal2').value);if(!a||!b||a===b)return alert('Elige dos animales diferentes.');const btn=document.getElementById('btnClaimReferral');btn.disabled=true;const r=await fetch('/api/referral/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({animal_ids:[a,b]})});const d=await r.json();alert(d.msg||'Listo');if(d.ok){cerrarReferral();location.reload()}else btn.disabled=false;};
+document.getElementById('btnClaimReferral').onclick=async()=>{const a=Number(document.getElementById('refAnimal1').value),b=Number(document.getElementById('refAnimal2').value);if(!a||!b||a===b)return alert('Elige dos animales diferentes.');const btn=document.getElementById('btnClaimReferral');btn.disabled=true;const r=await fetch('/api/referral/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({animal_ids:[a,b]})});const d=await r.json();alert(d.msg||'Listo');if(d.ok){cerrarReferral();cargarReferidos();cargarMisApuestas();cargarSaldoAutomatico();}else btn.disabled=false;};
 
 let montoRecarga=LEVELS.length?Math.max(DEPOSIT_MIN,LEVELS[0]):DEPOSIT_MIN;
 let metodoPagoSeleccionado=null;
@@ -480,10 +483,126 @@ cargarMisRetiros();
 cargarReferidos();
 const partidaActual=cierre.getTime();const ultimaPartidaGuardada=localStorage.getItem('ultima_partida');fetch('/api/mis-apuestas-actuales').then(r=>r.json()).then(d=>{if(d.apuestas&&Object.keys(d.apuestas).length>0){let diffRestante=cierre-new Date();if(ultimaPartidaGuardada&&parseInt(ultimaPartidaGuardada)!==partidaActual){localStorage.setItem('ultima_partida',partidaActual);apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();return}if(diffRestante>10000){misApuestasGuardadas=d.apuestas;for(let id in misApuestasGuardadas){let card=document.querySelector(`.card[data-id="${id}"]`);if(card)card.classList.add('selected')}calc();mostrarSalaConteo();localStorage.setItem('ultima_partida',partidaActual)}}});
 </script>
+
+<script>
+/* ================= ACTUALIZACION AUTOMATICA DEL JUGADOR ================= */
+let AUTO_SORTEO_ID = Number(document.getElementById('periodo')?.innerText || 0);
+let AUTO_LAST_CIERRE = '';
+
+async function cargarSaldoAutomatico(){
+  try{
+    const r=await fetch('/api/saldo',{cache:'no-store',credentials:'same-origin'});
+    const d=await r.json();
+    if(!d || d.saldo===undefined)return;
+    saldoActual=Number(d.saldo||0);
+    const el=document.getElementById('saldo');
+    if(el) el.innerText=money(Number(d.saldo_local||usdToLocal(saldoActual)));
+    const sm=document.getElementById('saldoModal');
+    if(sm && document.getElementById('modalRecarga')?.style.display==='flex') sm.innerText=money(Number(d.saldo_local||usdToLocal(saldoActual)));
+    const sr=document.getElementById('saldoModalRetiro');
+    if(sr && document.getElementById('modalRetiro')?.style.display==='flex') sr.innerText=money(Number(d.saldo_local||usdToLocal(saldoActual)));
+  }catch(e){}
+}
+
+async function actualizarEstadoSalaAutomatico(){
+  try{
+    const r=await fetch('/api/estado-sala',{cache:'no-store',credentials:'same-origin'});
+    const d=await r.json();
+    if(!d || !d.ok)return;
+
+    const estado=document.getElementById('autoSalaEstado');
+    if(estado){
+      if(d.pausado){
+        estado.style.display='block';
+        estado.innerText='⛔ SALA PAUSADA — No se aceptan apuestas en este momento.';
+      }else{
+        estado.style.display='none';
+      }
+    }
+
+    const nuevoId=Number(d.sorteo_id||0);
+    if(nuevoId && nuevoId!==AUTO_SORTEO_ID){
+      AUTO_SORTEO_ID=nuevoId;
+      const periodo=document.getElementById('periodo');
+      if(periodo) periodo.innerText=nuevoId;
+
+      apuestas={};
+      misApuestasGuardadas={};
+      document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));
+      calc();
+
+      if(d.cierre){
+        const parsed=new Date(d.cierre);
+        if(!isNaN(parsed.getTime())) cierre=parsed;
+      }else{
+        cierre=getCierreGlobal();
+      }
+
+      cargarHistorial();
+      cargarPozo();
+      cargarApuestasEnVivo();
+      cargarSaldoAutomatico();
+      cargarMisRetiros();
+      cargarReferidos();
+    }else if(d.cierre){
+      const parsed=new Date(d.cierre);
+      if(!isNaN(parsed.getTime()) && Math.abs(parsed.getTime()-cierre.getTime())>1500){
+        cierre=parsed;
+      }
+    }
+  }catch(e){}
+}
+
+async function cargarMisApuestasAutomatico(){
+  try{
+    const panel=document.getElementById('panelHistorial');
+    /* Solo actualizamos la ventana si el usuario la tiene abierta. */
+    if(panel && panel.style.display==='block' &&
+       document.getElementById('tituloHistorial')?.innerText.includes('Mis últimas')){
+      await verMisApuestas();
+    }
+  }catch(e){}
+}
+
+async function actualizarJugadorAutomatico(){
+  await Promise.allSettled([
+    cargarSaldoAutomatico(),
+    cargarPozo(),
+    cargarApuestasEnVivo(),
+    cargarMisRetiros(),
+    cargarReferidos(),
+    actualizarEstadoSalaAutomatico(),
+    cargarHistorial()
+  ]);
+}
+
+/* Arranque y actualización continua. */
+actualizarJugadorAutomatico();
+setInterval(actualizarJugadorAutomatico, 4000);
+setInterval(cargarHistorial, 8000);
+setInterval(cargarSaldoAutomatico, 2500);
+</script>
+
 <!-- BOTON WHATSAPP ICONO -->
 <a href="https://wa.me/56935491789?text=Hola%20Admin%2C%20soy%20de%20Loteria%20USA%20y%20necesito%20ayuda" target="_blank"
 style="position:fixed; bottom:20px; left:20px; background:#25D366; width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:9999; text-decoration:none;">
   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M19.05 4.94A9.91 9.91 0 0 0 12.04 2C6.58 2 2.15 6.43 2.15 11.89c0 1.74.45 3.44 1.32 4.94L2 22l5.33-1.4a9.87 9.87 0 0 0 4.71 1.2h.01c5.46 0 9.9-4.43 9.9-9.89 0-2.64-1.03-5.13-2.9-7.97zM12.05 20.03a8.07 8.07 0 0 1-4.11-1.13l-.29-.17-3.16.83.84-3.08-.19-.32a8.09 8.09 0 0 1-1.25-4.27c0-4.48 3.65-8.13 8.15-8.13 2.17 0 4.21.85 5.75 2.39a8.07 8.07 0 0 1 2.38 5.74c0 4.48-3.65 8.14-8.12 8.14zm4.47-6.09c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12s-.62.78-.76.94-.28.18-.52.06c-.24-.12-1.01-.37-1.92-1.18-.71-.63-1.19-1.41-1.33-1.65-.14-.24-.01-.37.11-.49.1-.1.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.41-.54-.42h-.46c-.16 0-.42.06-.64.3s-.84.82-.84 2 .86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.57.18 1.09.16 1.5.1.46-.07 1.43-.58 1.63-1.15.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28z"/></svg>
 </a>
+<script>
+
+/* Bloqueo visual inmediato cuando la sala está pausada. El backend también
+   valida la operación; esto solo mejora la experiencia del jugador. */
+document.addEventListener('click',function(e){
+  const estado=document.getElementById('autoSalaEstado');
+  if(!estado || estado.style.display!=='block') return;
+  const card=e.target.closest?.('.card');
+  if(card && card.parentElement?.id==='grid'){
+    e.preventDefault();
+    e.stopPropagation();
+    alert('⛔ La sala está pausada. Intenta nuevamente cuando sea activada.');
+  }
+},true);
+
+</script>
 </body>
 </html>
