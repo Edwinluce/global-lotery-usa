@@ -58,36 +58,12 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 .btn-cancel{background:transparent;border:1px solid #444;border-radius:12px;padding:11px;width:100%;color:#aaa;margin-top:10px;cursor:pointer}
 .bcp-destacado{background:#000;border:1.5px dashed #d4a853;border-radius:14px;padding:12px;margin:10px 0}
 .secure{text-align:center;font-size:10px;color:#5a7a6d;margin-top:12px}
-</style>
 
-<style>
-#liveBetsCard{margin:14px 0;padding:14px;border-radius:16px;background:linear-gradient(180deg,#210707,#120505);border:1px solid #7d1717;box-shadow:0 8px 25px rgba(0,0,0,.22)}
-#liveBetsCard .live-head{display:flex;align-items:center;gap:8px;font-weight:900;color:#ff5757;font-size:15px}
-#liveBetsCard .live-dot{width:9px;height:9px;border-radius:50%;background:#ff3030;box-shadow:0 0 10px #ff3030;animation:livePulse 1s infinite}
-@keyframes livePulse{50%{opacity:.35;transform:scale(.8)}}
-#liveBetsCard .live-sub{font-size:11px;color:#d99b9b;margin-top:3px}
-#liveBetsStats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}
-#liveBetsStats .ls{background:#2a0b0b;border:1px solid #511313;border-radius:10px;padding:8px;text-align:center}
-#liveBetsStats small{display:block;color:#c99393;font-size:9px}
-#liveBetsStats b{display:block;color:#fff;font-size:14px;margin-top:2px}
-#liveBetsList{margin-top:10px;max-height:230px;overflow:auto}
-.live-row{display:grid;grid-template-columns:62px 1fr auto;gap:7px;align-items:center;padding:8px 4px;border-top:1px solid #421111;font-size:11px}
-.live-row .tm{color:#a87878}.live-row .animal{color:#fff;font-weight:800}.live-row .amt{color:#ff8585;font-weight:900;text-align:right}
-</style>
+.live-bets{margin:8px;background:#101b16;border:1.5px solid #ff4545;border-radius:14px;padding:12px}.live-title{display:flex;align-items:center;gap:7px;color:#ff6b6b;font-weight:900;font-size:13px}.live-dot{width:8px;height:8px;background:#ff3434;border-radius:50%;box-shadow:0 0 8px #ff3434;display:inline-block}.live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.live-stat{background:#07120e;border:1px solid #294237;border-radius:10px;padding:8px 4px;text-align:center}.live-stat small{display:block;color:#91b6a4;font-size:9px}.live-stat b{display:block;color:#ffcc4d;font-size:13px;margin-top:3px}.live-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}.live-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#09130f;border:1px solid #243b30;border-radius:9px;padding:8px;font-size:11px}.live-item .live-animal{font-weight:800}.live-item .live-meta{color:#8ca99a;font-size:9px}.live-item .live-amount{color:#86efac;font-weight:900;white-space:nowrap}.live-empty{color:#8ca99a;text-align:center;padding:14px;font-size:11px}
 
+</style>
 </head>
 <body>
-<div id="liveBetsCard">
-  <div class="live-head"><span class="live-dot"></span><span data-i18n="liveBets">APUESTAS EN VIVO</span><span style="margin-left:auto;font-size:9px;color:#d99b9b">EN DIRECTO</span></div>
-  <div class="live-sub" data-i18n="liveSub">Apuestas realizadas en la sala actual</div>
-  <div id="liveBetsStats">
-    <div class="ls"><small data-i18n="animalsPlayed">Animales jugados</small><b id="liveAnimals">0</b></div>
-    <div class="ls"><small data-i18n="bets">Apuestas</small><b id="liveCount">0</b></div>
-    <div class="ls"><small data-i18n="totalStaked">Total apostado</small><b id="liveTotal">0</b></div>
-  </div>
-  <div id="liveBetsList"><div style="padding:12px 4px;color:#b98d8d;font-size:11px" data-i18n="loading">Cargando...</div></div>
-</div>
-
 <div class="top">
 <div style="font-size:24px" onclick="location.href='/logout'">☰</div>
 <div class="logo">ANIMALITOS<span>GLOBAL</span><small id="paisMoneda" style="display:block;font-size:9px;letter-spacing:1px;color:#9fffc5;margin-top:3px">{{ pais }} · {{ moneda }}</small></div>
@@ -149,6 +125,16 @@ async function verHistorial(){
 <small style="color:#5a7a6d;font-size:10px;cursor:pointer" onclick="cargarHistorial()" id="btnRefreshHist">↻ Refresh</small>
 </div>
 <div id="historialAnimales" class="historial-items"></div>
+</div>
+
+<div class="live-bets">
+  <div class="live-title"><span class="live-dot"></span> 🔴 APUESTAS EN VIVO <small style="margin-left:auto;color:#8ca99a;font-size:9px">EN DIRECTO</small></div>
+  <div class="live-stats">
+    <div class="live-stat"><small>🐾 Animales jugados</small><b id="liveAnimales">0</b></div>
+    <div class="live-stat"><small>🎯 Apuestas</small><b id="liveCantidad">0</b></div>
+    <div class="live-stat"><small>💰 Total apostado</small><b id="liveTotal">$0</b></div>
+  </div>
+  <div id="liveLista" class="live-list"><div class="live-empty">Cargando apuestas...</div></div>
 </div>
 <div class="grid" id="grid"></div>
 <div class="panel">
@@ -270,6 +256,26 @@ function mostrarResultado(){document.getElementById('modalSala').style.display='
 function volverSala(){document.getElementById('modalResultado').style.display='none';document.getElementById('modalSala').style.display='none';apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cierre=getCierreGlobal();cargarHistorial();}
 function cargarHistorial(){fetch('/api/historial-sorteos').then(r=>r.json()).then(h=>{let cont=document.getElementById('historialAnimales');cont.innerHTML='';if(!h||h.length==0){cont.innerHTML='<small style="color:#555">No draws yet</small>';return}h.slice(0,20).forEach(row=>{let id=row.animal_ganador;let a=animales.find(x=>x[0]==id);if(!a)return;let div=document.createElement('div');div.style.cssText='background:#111;border:1px solid #333;border-radius:10px;padding:6px 8px;text-align:center;min-width:62px;flex-shrink:0';div.innerHTML=`<div style="font-size:22px">${a[2]}</div><div style="font-size:8px;color:#ffcc4d">${a[1]}</div><div style="font-size:9px;color:#aaa">#${String(a[0]).padStart(2,'0')}</div>`;cont.appendChild(div)})});}
 cargarHistorial();
+
+async function cargarApuestasEnVivo(){
+  try{
+    const r=await fetch('/api/apuestas-en-vivo',{cache:'no-store'});
+    if(!r.ok) throw new Error('No disponible');
+    const d=await r.json(); if(!d.ok) throw new Error(d.msg||'No disponible');
+    document.getElementById('liveAnimales').innerText=Number(d.animales_jugados||0);
+    document.getElementById('liveCantidad').innerText=Number(d.cantidad_apuestas||0);
+    document.getElementById('liveTotal').innerText=money(Number(d.total_local||0));
+    const lista=document.getElementById('liveLista');
+    if(!d.lista||!d.lista.length){lista.innerHTML='<div class="live-empty">Todavía no hay apuestas en este sorteo. ¡Sé el primero!</div>';return;}
+    lista.innerHTML=d.lista.map(x=>{
+      const a=animales.find(y=>y[1]===x.animal); const emoji=a?a[2]:'🐾';
+      return `<div class="live-item"><div><div class="live-animal">${emoji} ${x.animal||'Animal'}</div><div class="live-meta">${x.jugador||'Jugador'} · ${x.hora||''}</div></div><div class="live-amount">${money(Number(x.monto_local||0))}</div></div>`;
+    }).join('');
+  }catch(e){document.getElementById('liveLista').innerHTML='<div class="live-empty">No se pudieron cargar las apuestas en vivo.</div>';}
+}
+cargarApuestasEnVivo();
+setInterval(cargarApuestasEnVivo,3000);
+
 async function cargarPozo(){
  try{
   const r=await fetch('/api/pozo-actual'); const d=await r.json();
@@ -282,11 +288,48 @@ function getCierreGlobal(){const unaHora=60*60*1000;return new Date(Math.ceil(Da
 setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){mostrarResultado();cierre=getCierreGlobal();apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cargarHistorial()}},1000);
 let REF_CODE='';
 function referralLink(){ return location.origin+'/login?ref='+encodeURIComponent(REF_CODE); }
-async function cargarReferidos(){
- try{const r=await fetch('/api/referral');const d=await r.json();if(!d.ok)return;REF_CODE=d.code||'';document.getElementById('refCode').innerText=REF_CODE;document.getElementById('refStats').innerText=`Registrados: ${d.registered}/2 · Calificados: ${d.qualified}/2 · Bonos disponibles: ${d.pending_rewards}`;if(d.pending_rewards>0){let b=document.getElementById('referralCard');b.style.borderColor='#ffcc4d';let btn=document.createElement('button');btn.id='btnClaimReferralOpen';btn.innerText='🎁 Reclamar 2 animales gratis';btn.onclick=abrirReferral;btn.style.cssText='width:100%;margin-top:10px;background:#d4a853;color:#000;border:0;border-radius:11px;padding:10px;font-weight:900;cursor:pointer';b.appendChild(btn)}}catch(e){}
+let REF_LOADING=false;
+async function cargarReferidos(intentos=0){
+ const codeEl=document.getElementById('refCode');
+ const statsEl=document.getElementById('refStats');
+ try{
+  if(REF_LOADING)return; REF_LOADING=true;
+  const r=await fetch('/api/referral',{cache:'no-store',credentials:'same-origin'});
+  const d=await r.json();
+  if(!d || !d.ok || !d.code){
+    if(intentos<2){ REF_LOADING=false; setTimeout(()=>cargarReferidos(intentos+1),900); return; }
+    codeEl.innerText='No se pudo generar el código';
+    statsEl.innerText='Recarga la página e inténtalo nuevamente';
+    return;
+  }
+  REF_CODE=String(d.code);
+  codeEl.innerText=REF_CODE;
+  statsEl.innerText=`Registrados: ${Number(d.registered||0)}/2 · Calificados: ${Number(d.qualified||0)}/2 · Bonos disponibles: ${Number(d.pending_rewards||0)}`;
+  if(Number(d.pending_rewards||0)>0 && !document.getElementById('btnClaimReferralOpen')){
+    const card=document.getElementById('referralCard'); card.style.borderColor='#ffcc4d';
+    const btn=document.createElement('button'); btn.id='btnClaimReferralOpen'; btn.innerText='🎁 Reclamar 2 animales gratis'; btn.onclick=abrirReferral;
+    btn.style.cssText='width:100%;margin-top:10px;background:#d4a853;color:#000;border:0;border-radius:11px;padding:10px;font-weight:900;cursor:pointer'; card.appendChild(btn);
+  }
+ }catch(e){
+  if(intentos<2){ REF_LOADING=false; setTimeout(()=>cargarReferidos(intentos+1),900); return; }
+  codeEl.innerText='Error al cargar código'; statsEl.innerText='Verifica tu conexión y recarga la página';
+ }finally{ REF_LOADING=false; }
 }
-function copiarMiEnlace(){if(!REF_CODE)return;const u=referralLink();navigator.clipboard?.writeText(u).then(()=>alert('✅ Enlace copiado')).catch(()=>prompt('Copia este enlace:',u));}
-function abrirMiQR(){if(!REF_CODE)return;const u=referralLink();document.getElementById('miQrUrl').innerText=u;document.getElementById('miQrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(u);document.getElementById('modalMiQR').style.display='flex';}
+function copiarMiEnlace(){
+ if(!REF_CODE)return alert('⏳ Espera a que cargue tu código de referido');
+ const u=referralLink();
+ if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(u).then(()=>alert('✅ Enlace copiado')).catch(()=>prompt('Copia este enlace:',u));
+ else prompt('Copia este enlace:',u);
+}
+function abrirMiQR(){
+ if(!REF_CODE)return alert('⏳ Espera a que cargue tu código de referido');
+ const u=referralLink();
+ document.getElementById('miQrUrl').innerText=u;
+ const img=document.getElementById('miQrImg');
+ img.onerror=function(){this.onerror=null;this.src='https://quickchart.io/qr?size=260&text='+encodeURIComponent(u);};
+ img.src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(u);
+ document.getElementById('modalMiQR').style.display='flex';
+}
 function cerrarMiQR(){document.getElementById('modalMiQR').style.display='none'}
 function abrirReferral(){
  const box=document.getElementById('refAnimalSelectors'); box.innerHTML='';
@@ -384,85 +427,5 @@ const partidaActual=cierre.getTime();const ultimaPartidaGuardada=localStorage.ge
 style="position:fixed; bottom:20px; left:20px; background:#25D366; width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:9999; text-decoration:none;">
   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M19.05 4.94A9.91 9.91 0 0 0 12.04 2C6.58 2 2.15 6.43 2.15 11.89c0 1.74.45 3.44 1.32 4.94L2 22l5.33-1.4a9.87 9.87 0 0 0 4.71 1.2h.01c5.46 0 9.9-4.43 9.9-9.89 0-2.64-1.03-5.13-2.9-7.97zM12.05 20.03a8.07 8.07 0 0 1-4.11-1.13l-.29-.17-3.16.83.84-3.08-.19-.32a8.09 8.09 0 0 1-1.25-4.27c0-4.48 3.65-8.13 8.15-8.13 2.17 0 4.21.85 5.75 2.39a8.07 8.07 0 0 1 2.38 5.74c0 4.48-3.65 8.14-8.12 8.14zm4.47-6.09c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12s-.62.78-.76.94-.28.18-.52.06c-.24-.12-1.01-.37-1.92-1.18-.71-.63-1.19-1.41-1.33-1.65-.14-.24-.01-.37.11-.49.1-.1.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.41-.54-.42h-.46c-.16 0-.42.06-.64.3s-.84.82-.84 2 .86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.57.18 1.09.16 1.5.1.46-.07 1.43-.58 1.63-1.15.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28z"/></svg>
 </a>
-
-<script>
-async function cargarApuestasEnVivo(){
-  const list=document.getElementById('liveBetsList');
-  if(!list)return;
-  try{
-    const r=await fetch('/api/apuestas-en-vivo',{cache:'no-store',credentials:'same-origin'});
-    const d=await r.json();
-    if(!r.ok||!d.ok)throw new Error(d.msg||'error');
-    document.getElementById('liveAnimals').textContent=Number(d.cantidad_animales||0);
-    document.getElementById('liveCount').textContent=Number(d.cantidad_apuestas||0);
-    document.getElementById('liveTotal').textContent=(d.simbolo||'')+Number(d.total||0).toLocaleString(undefined,{maximumFractionDigits:2});
-    const rows=Array.isArray(d.apuestas)?d.apuestas:[];
-    if(!rows.length){
-      list.innerHTML='<div style="padding:12px 4px;color:#b98d8d;font-size:11px" data-i18n="noBets">Aún no hay apuestas en vivo.</div>';
-      aplicarIdiomaPais();
-      return;
-    }
-    list.innerHTML=rows.map(x=>`<div class="live-row">
-      <span class="tm">${escapeHtmlLive(x.fecha||'')}</span>
-      <span class="animal">🐾 ${escapeHtmlLive(x.animal||'Animal')} <small style="color:#9c7777">· ${escapeHtmlLive(x.jugador||'Jugador')}</small></span>
-      <span class="amt">${escapeHtmlLive(x.simbolo||'')} ${Number(x.monto||0).toLocaleString(undefined,{maximumFractionDigits:2})}</span>
-    </div>`).join('');
-  }catch(e){
-    list.innerHTML='<div style="padding:12px 4px;color:#c77;font-size:11px" data-i18n="liveUnavailable">Apuestas en vivo no disponibles.</div>';
-    aplicarIdiomaPais();
-  }
-}
-function escapeHtmlLive(v){
-  return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-}
-document.addEventListener('DOMContentLoaded',()=>{cargarApuestasEnVivo();setInterval(cargarApuestasEnVivo,3000);});
-</script>
-
-
-<script>
-/* ===== IDIOMA SEGÚN EL PAÍS DE LA CUENTA =====
-   Se conserva intacto el sistema de QR y referidos del archivo original.
-*/
-const PAIS_CUENTA = String(
-  (typeof GAME_CONFIG!=='undefined' && GAME_CONFIG.pais) ||
-  (typeof window.GAME_CONFIG!=='undefined' && window.GAME_CONFIG.pais) ||
-  document.body.dataset.pais || ''
-).trim();
-
-const IDIOMA_PAIS = ['USA','Estados Unidos','United States'].includes(PAIS_CUENTA) ? 'en' : 'es';
-
-const TEXTOS_IDIOMA = {
-  es:{
-    liveBets:'APUESTAS EN VIVO',
-    liveSub:'Apuestas realizadas en la sala actual',
-    animalsPlayed:'Animales jugados',
-    bets:'Apuestas',
-    totalStaked:'Total apostado',
-    loading:'Cargando...',
-    noBets:'Aún no hay apuestas en vivo.',
-    liveUnavailable:'Apuestas en vivo no disponibles.'
-  },
-  en:{
-    liveBets:'LIVE BETS',
-    liveSub:'Bets placed in the current room',
-    animalsPlayed:'Animals played',
-    bets:'Bets',
-    totalStaked:'Total staked',
-    loading:'Loading...',
-    noBets:'No live bets yet.',
-    liveUnavailable:'Live bets unavailable.'
-  }
-}[IDIOMA_PAIS];
-
-function aplicarIdiomaPais(){
-  document.documentElement.lang=IDIOMA_PAIS;
-  document.querySelectorAll('[data-i18n]').forEach(el=>{
-    const k=el.getAttribute('data-i18n');
-    if(TEXTOS_IDIOMA[k])el.textContent=TEXTOS_IDIOMA[k];
-  });
-}
-document.addEventListener('DOMContentLoaded',aplicarIdiomaPais);
-</script>
-
 </body>
 </html>
