@@ -20,7 +20,7 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 .box small{color:#d4a853;font-size:10px}
 .box b{font-size:11px;display:block}
 .box b.red{color:#ff4444;font-size:18px;font-weight:800}
-.historial{margin:8px;background:#0f1f18;border:1px solid #d4a853;border-radius:12px;padding:10px}
+.pozo-box{margin:8px;background:linear-gradient(180deg,#132a22,#0a1a14);border:2px solid #22c55e;border-radius:14px;padding:12px;text-align:center}.pozo-box small{display:block;color:#d4a853;font-size:10px}.pozo-box b{display:block;color:#ffcc4d;font-size:24px;margin-top:2px}.pozo-box span{display:block;color:#9ecbb6;font-size:10px;margin-top:2px}.historial{margin:8px;background:#0f1f18;border:1px solid #d4a853;border-radius:12px;padding:10px}
 .historial-head{display:flex;justify-content:space-between;align-items:center}
 .historial-items{display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:4px}
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:8px}
@@ -58,6 +58,9 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 .btn-cancel{background:transparent;border:1px solid #444;border-radius:12px;padding:11px;width:100%;color:#aaa;margin-top:10px;cursor:pointer}
 .bcp-destacado{background:#000;border:1.5px dashed #d4a853;border-radius:14px;padding:12px;margin:10px 0}
 .secure{text-align:center;font-size:10px;color:#5a7a6d;margin-top:12px}
+
+.live-bets{margin:8px;background:#101b16;border:1.5px solid #ff4545;border-radius:14px;padding:12px}.live-title{display:flex;align-items:center;gap:7px;color:#ff6b6b;font-weight:900;font-size:13px}.live-dot{width:8px;height:8px;background:#ff3434;border-radius:50%;box-shadow:0 0 8px #ff3434;display:inline-block}.live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.live-stat{background:#07120e;border:1px solid #294237;border-radius:10px;padding:8px 4px;text-align:center}.live-stat small{display:block;color:#91b6a4;font-size:9px}.live-stat b{display:block;color:#ffcc4d;font-size:13px;margin-top:3px}.live-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}.live-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#09130f;border:1px solid #243b30;border-radius:9px;padding:8px;font-size:11px}.live-item .live-animal{font-weight:800}.live-item .live-meta{color:#8ca99a;font-size:9px}.live-item .live-amount{color:#86efac;font-weight:900;white-space:nowrap}.live-empty{color:#8ca99a;text-align:center;padding:14px;font-size:11px}
+
 </style>
 </head>
 <body>
@@ -67,8 +70,21 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 <div><div class="saldo"><small>balance</small> <b id="saldo">$ 0.00</b> <div class="plus" id="btn-plus">+</div> <button class="btn-retiro-top" id="btn-retiro-top">WITHDRAW</button></div>
 <div style="text-align:right;font-size:10px;margin-top:4px">ID: {{ session['user'] if session['user'] else 0 }}</div></div>
 </div>
+<div id="referralCard" style="margin:10px 8px;background:linear-gradient(180deg,#132a22,#0a1a14);border:1.5px solid #22c55e;border-radius:16px;padding:14px;box-shadow:0 0 18px rgba(34,197,94,.12)">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <div><b style="color:#86efac">👥 INVITA Y GANA</b><div style="font-size:11px;color:#aaa;margin-top:3px">Invita a 2 personas. Cuando ambas hagan su primera recarga aprobada, recibes 2 animales gratis.</div></div>
+    <button onclick="abrirMiQR()" style="background:#22c55e;color:#062b14;border:0;border-radius:10px;padding:8px 10px;font-weight:900;cursor:pointer">📷 QR</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+    <div id="refCode" style="flex:1;background:#000;border:1px solid #294d3b;border-radius:10px;padding:9px;font-size:12px;color:#ffcc4d;text-align:center">Cargando código...</div>
+    <button onclick="copiarMiEnlace()" style="background:#202020;color:#fff;border:1px solid #444;border-radius:10px;padding:9px;cursor:pointer">📋</button>
+  </div>
+  <div id="refStats" style="font-size:11px;color:#aaa;margin-top:8px;text-align:center"></div>
+</div>
+
 <div style="display:flex;gap:10px;margin:12px 0">
   <button onclick="verMisApuestas()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">🎯 Mis Jugadas</button>
+  <button onclick="verHistorial()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">📜 Últimos que Salieron</button>
 </div>
 
 <div id="panelHistorial" style="display:none;background:#151515;border:1px solid #252525;border-radius:16px;padding:14px;margin-bottom:12px">
@@ -88,18 +104,37 @@ async function verMisApuestas(){
   html+='</table>';
   document.getElementById('contenidoHistorial').innerHTML=html;
 }
+async function verHistorial(){
+  document.getElementById('panelHistorial').style.display='block';
+  document.getElementById('tituloHistorial').innerText='📜 Últimos animales que salieron';
+  document.getElementById('contenidoHistorial').innerText='Cargando...';
+  let r=await fetch('/api/historial-global'); let data=await r.json();
+  let html=''; data.forEach(x=>{html+=`#${x.id} - ${x.fecha} - <b>🦁 ${x.ganador}</b> (S/ ${x.recaudado})<br>`});
+  document.getElementById('contenidoHistorial').innerHTML=html || 'Aún no hay sorteos finalizados';
+}
 </script>
 <div class="info">
 <div class="box"><small>CURRENT PERIOD</small><b id="periodo">{{ sorteo[0] if sorteo else 0 }}</b></div>
 <div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
 <div class="box"><small>PLAYING</small><b id="jugadores">In room</b></div>
 </div>
+<div class="pozo-box"><small>🏆 POZO A REPARTIR</small><b id="pozoActual">$ 0.00</b></div>
 <div class="historial">
 <div class="historial-head">
 <b style="font-size:11px;color:#d4a853">📜 LAST WINNERS</b>
 <small style="color:#5a7a6d;font-size:10px;cursor:pointer" onclick="cargarHistorial()" id="btnRefreshHist">↻ Refresh</small>
 </div>
 <div id="historialAnimales" class="historial-items"></div>
+</div>
+
+<div class="live-bets">
+  <div class="live-title"><span class="live-dot"></span> 🔴 APUESTAS EN VIVO <small style="margin-left:auto;color:#8ca99a;font-size:9px">EN DIRECTO</small></div>
+  <div class="live-stats">
+    <div class="live-stat"><small>🐾 Animales jugados</small><b id="liveAnimales">0</b></div>
+    <div class="live-stat"><small>🎯 Apuestas</small><b id="liveCantidad">0</b></div>
+    <div class="live-stat"><small>💰 Total apostado</small><b id="liveTotal">$0</b></div>
+  </div>
+  <div id="liveLista" class="live-list"><div class="live-empty">Cargando apuestas...</div></div>
 </div>
 <div class="grid" id="grid"></div>
 <div class="panel">
@@ -131,6 +166,24 @@ async function verMisApuestas(){
 <button class="btn-volver" onclick="volverSala()">🔄 Back to room</button>
 </div>
 
+
+<div id="modalReferral" class="modal-recarga">
+<div class="box-recarga" style="text-align:center">
+<h3>🎁 Tus 2 animales gratis</h3>
+<small class="sub">Elige dos animales diferentes para el sorteo actual.</small>
+<div id="refAnimalSelectors" style="display:grid;gap:8px;margin-top:12px"></div>
+<button class="btn-pagar" id="btnClaimReferral">🎁 Activar mis 2 animales gratis</button>
+<button class="btn-cancel" onclick="cerrarReferral()">Cerrar</button>
+</div></div>
+<div id="modalMiQR" class="modal-recarga">
+<div class="box-recarga" style="text-align:center">
+<h3>📷 Mi enlace de invitación</h3><small class="sub">Comparte este QR con tus amigos.</small>
+<div style="background:#fff;border-radius:14px;padding:10px;margin:14px auto;width:250px"><img id="miQrImg" style="display:block;width:230px;height:230px;margin:auto"></div>
+<div id="miQrUrl" style="font-size:10px;color:#9ecbb6;word-break:break-all"></div>
+<button class="btn-pagar" onclick="copiarMiEnlace()">📋 Copiar enlace</button>
+<button class="btn-cancel" onclick="cerrarMiQR()">Cerrar</button>
+</div></div>
+
 <div id="modalRecarga" class="modal-recarga">
 <div class="box-recarga">
 <h3>💳 Add Balance</h3>
@@ -149,7 +202,7 @@ async function verMisApuestas(){
 <input type="file" id="voucherFile" accept="image/jpeg,image/png,image/webp" class="input-card">
 <input id="operacion" class="input-card" placeholder="Número de operación / referencia *">
 <input id="cardNombre" class="input-card" placeholder="Nombre de quien realizó el pago *">
-<button type="button" class="btn-pagar" id="btnPagar">✅ Enviar solicitud</button>
+<button type="button" class="btn-pagar" id="btnPagar">✅ Ya realicé el pago — Enviar comprobante</button>
 <button type="button" class="btn-cancel" onclick="cerrarRecarga()">Cancel</button>
 <div class="secure">Verified account weinderlyn@gmail.com - Approved in 5 min</div>
 </div>
@@ -188,7 +241,7 @@ let saldoActual=0; try{saldoActual=parseFloat("{{ saldo|default(0) }}")||0;}catc
 let periodoId="{{ sorteo[0] if sorteo else 0 }}";
 document.getElementById('saldo').innerText=money(usdToLocal(saldoActual));
 document.getElementById('paisMoneda').innerText=GAME_CONFIG.name+' · '+CURRENCY;
-document.getElementById('rangoApuesta').innerText='Min '+money(LEVELS[0])+' · x'+GAME_CONFIG.premio_multiplicador;
+document.getElementById('rangoApuesta').innerText='Min '+money(LEVELS[0]);
 const animales=[[1,"Perro","🐶"],[2,"Gato","🐱"],[3,"Ratón","🐭"],[4,"Conejo","🐰"],[5,"Zorro","🦊"],[6,"Tigre","🐯"],[7,"León","🦁"],[8,"Elefante","🐘"],[9,"Mono","🐒"],[10,"Gallina","🐔"],[11,"Gallo","🐓"],[12,"Cerdo","🐷"],[13,"Vaca","🐄"],[14,"Caballo","🐴"],[15,"Alpaca","🦙"],[16,"Vicuña","🦙"],[17,"Cóndor","🦅"],[18,"Oso","🐻"],[19,"Puma","🦁"],[20,"Gallito","🐦"],[21,"Caimán","🐊"],[22,"Serpiente","🐍"],[23,"Rana","🐸"],[24,"Delfin","🐬"],[25,"Guacamayo","🦜"]];
 let monto=LEVELS[0], apuestas={}, misApuestasGuardadas={};
 const grid=document.getElementById('grid');
@@ -199,12 +252,57 @@ function calc(){ let t=Object.values(apuestas).reduce((a,b)=>a+Number(b),0); doc
 document.getElementById('btn-limpiar').onclick=()=>{apuestas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc()};
 document.getElementById('btn-confirmar').onclick=()=>{ let total=calc(); if(total<=0)return alert('Elige un animal'); let totalUsd=localToUsd(total); if(saldoActual<totalUsd){alert('Saldo insuficiente');abrirRecarga();return;} misApuestasGuardadas={...apuestas}; fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apuestas})}).then(r=>r.json()).then(d=>{if(d.ok){saldoActual-=Number(d.total_usd||totalUsd);document.getElementById('saldo').innerText=money(usdToLocal(saldoActual));mostrarSalaConteo()}else alert(d.msg||'No se pudo registrar')}); };
 function mostrarSalaConteo(){ let html='';let total=0;for(let id in misApuestasGuardadas){let a=animales.find(x=>x[0]==id);if(a){html+=`<div>${a[2]} ${a[1]} ${money(misApuestasGuardadas[id])}</div>`;total+=Number(misApuestasGuardadas[id])}}document.getElementById('listaElegidos').innerHTML=html;document.getElementById('totalSala').innerText=money(total);document.getElementById('modalSala').style.display='flex'; }
-function mostrarResultado(){document.getElementById('modalSala').style.display='none';fetch('/api/ultimo-resultado').then(r=>r.json()).then(d=>{let idGanador=d.ganador!==null?parseInt(d.ganador):(Math.floor(Math.random()*25)+1);let g=animales.find(x=>x[0]==idGanador)||animales[6];document.getElementById('ganadorEmoji').innerText=g[2];document.getElementById('ganadorNombre').innerText=g[1].toUpperCase();document.getElementById('ganadorNum').innerText='N° '+String(g[0]).padStart(2,'0');if(misApuestasGuardadas[g[0]]){let bet=Number(misApuestasGuardadas[g[0]]);document.getElementById('ganasteTexto').innerHTML=`🎉 <b style="color:#22c55e">YOU WON!</b><br>You bet ${money(bet)} on ${g[1]}<br>Prize: ${money(bet*GAME_CONFIG.premio_multiplicador)}`;fetch('/api/saldo').then(r=>r.json()).then(s=>{saldoActual=Number(s.saldo||0);document.getElementById('saldo').innerText=money(Number(s.saldo_local||usdToLocal(saldoActual)))})}else document.getElementById('ganasteTexto').innerHTML=`😢 Not this time<br>Winner <b style="color:#ffcc4d">${g[1]}</b>`;document.getElementById('modalResultado').style.display='flex';cargarHistorial()});}
+function mostrarResultado(){document.getElementById('modalSala').style.display='none';fetch('/api/ultimo-resultado').then(r=>r.json()).then(d=>{let idGanador=d.ganador!==null?parseInt(d.ganador):(Math.floor(Math.random()*25)+1);let g=animales.find(x=>x[0]==idGanador)||animales[6];document.getElementById('ganadorEmoji').innerText=g[2];document.getElementById('ganadorNombre').innerText=g[1].toUpperCase();document.getElementById('ganadorNum').innerText='N° '+String(g[0]).padStart(2,'0');if(misApuestasGuardadas[g[0]]){let bet=Number(misApuestasGuardadas[g[0]]);document.getElementById('ganasteTexto').innerHTML=`🎉 <b style="color:#22c55e">YOU WON!</b><br>You bet ${money(bet)} on ${g[1]}<br>Tu premio se calcula según el pozo disponible y se divide en partes iguales entre los ganadores` ;fetch('/api/saldo').then(r=>r.json()).then(s=>{saldoActual=Number(s.saldo||0);document.getElementById('saldo').innerText=money(Number(s.saldo_local||usdToLocal(saldoActual)))})}else document.getElementById('ganasteTexto').innerHTML=`😢 Not this time<br>Winner <b style="color:#ffcc4d">${g[1]}</b>`;document.getElementById('modalResultado').style.display='flex';cargarHistorial()});}
 function volverSala(){document.getElementById('modalResultado').style.display='none';document.getElementById('modalSala').style.display='none';apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cierre=getCierreGlobal();cargarHistorial();}
 function cargarHistorial(){fetch('/api/historial-sorteos').then(r=>r.json()).then(h=>{let cont=document.getElementById('historialAnimales');cont.innerHTML='';if(!h||h.length==0){cont.innerHTML='<small style="color:#555">No draws yet</small>';return}h.slice(0,20).forEach(row=>{let id=row.animal_ganador;let a=animales.find(x=>x[0]==id);if(!a)return;let div=document.createElement('div');div.style.cssText='background:#111;border:1px solid #333;border-radius:10px;padding:6px 8px;text-align:center;min-width:62px;flex-shrink:0';div.innerHTML=`<div style="font-size:22px">${a[2]}</div><div style="font-size:8px;color:#ffcc4d">${a[1]}</div><div style="font-size:9px;color:#aaa">#${String(a[0]).padStart(2,'0')}</div>`;cont.appendChild(div)})});}
 cargarHistorial();
+
+async function cargarApuestasEnVivo(){
+  try{
+    const r=await fetch('/api/apuestas-en-vivo',{cache:'no-store'});
+    if(!r.ok) throw new Error('No disponible');
+    const d=await r.json(); if(!d.ok) throw new Error(d.msg||'No disponible');
+    document.getElementById('liveAnimales').innerText=Number(d.animales_jugados||0);
+    document.getElementById('liveCantidad').innerText=Number(d.cantidad_apuestas||0);
+    document.getElementById('liveTotal').innerText=money(Number(d.total_local||0));
+    const lista=document.getElementById('liveLista');
+    if(!d.lista||!d.lista.length){lista.innerHTML='<div class="live-empty">Todavía no hay apuestas en este sorteo. ¡Sé el primero!</div>';return;}
+    lista.innerHTML=d.lista.map(x=>{
+      const a=animales.find(y=>y[1]===x.animal); const emoji=a?a[2]:'🐾';
+      return `<div class="live-item"><div><div class="live-animal">${emoji} ${x.animal||'Animal'}</div><div class="live-meta">${x.jugador||'Jugador'} · ${x.hora||''}</div></div><div class="live-amount">${money(Number(x.monto_local||0))}</div></div>`;
+    }).join('');
+  }catch(e){document.getElementById('liveLista').innerHTML='<div class="live-empty">No se pudieron cargar las apuestas en vivo.</div>';}
+}
+cargarApuestasEnVivo();
+setInterval(cargarApuestasEnVivo,3000);
+
+async function cargarPozo(){
+ try{
+  const r=await fetch('/api/pozo-actual'); const d=await r.json();
+  if(d.ok){ document.getElementById('pozoActual').innerText=money(Number(d.pozo_local||0)); }
+ }catch(e){}
+}
+cargarPozo();
+setInterval(cargarPozo,5000);
 function getCierreGlobal(){const unaHora=60*60*1000;return new Date(Math.ceil(Date.now()/unaHora)*unaHora)} let cierre=getCierreGlobal();
 setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){mostrarResultado();cierre=getCierreGlobal();apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cargarHistorial()}},1000);
+let REF_CODE='';
+function referralLink(){ return location.origin+'/login?ref='+encodeURIComponent(REF_CODE); }
+async function cargarReferidos(){
+ try{const r=await fetch('/api/referral');const d=await r.json();if(!d.ok)return;REF_CODE=d.code||'';document.getElementById('refCode').innerText=REF_CODE;document.getElementById('refStats').innerText=`Registrados: ${d.registered}/2 · Calificados: ${d.qualified}/2 · Bonos disponibles: ${d.pending_rewards}`;if(d.pending_rewards>0){let b=document.getElementById('referralCard');b.style.borderColor='#ffcc4d';let btn=document.createElement('button');btn.id='btnClaimReferralOpen';btn.innerText='🎁 Reclamar 2 animales gratis';btn.onclick=abrirReferral;btn.style.cssText='width:100%;margin-top:10px;background:#d4a853;color:#000;border:0;border-radius:11px;padding:10px;font-weight:900;cursor:pointer';b.appendChild(btn)}}catch(e){}
+}
+function copiarMiEnlace(){if(!REF_CODE)return;const u=referralLink();navigator.clipboard?.writeText(u).then(()=>alert('✅ Enlace copiado')).catch(()=>prompt('Copia este enlace:',u));}
+function abrirMiQR(){if(!REF_CODE)return;const u=referralLink();document.getElementById('miQrUrl').innerText=u;document.getElementById('miQrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(u);document.getElementById('modalMiQR').style.display='flex';}
+function cerrarMiQR(){document.getElementById('modalMiQR').style.display='none'}
+function abrirReferral(){
+ const box=document.getElementById('refAnimalSelectors'); box.innerHTML='';
+ for(let i=1;i<=2;i++){const sel=document.createElement('select');sel.className='input-card';sel.id='refAnimal'+i;sel.innerHTML='<option value="">Selecciona animal '+i+'</option>'+animales.map(a=>`<option value="${a[0]}">${a[2]} ${a[1]} (#${String(a[0]).padStart(2,'0')})</option>`).join('');box.appendChild(sel)}
+ document.getElementById('modalReferral').style.display='flex';
+}
+function cerrarReferral(){document.getElementById('modalReferral').style.display='none'}
+document.addEventListener('click',e=>{if(e.target===document.getElementById('modalMiQR'))cerrarMiQR();if(e.target===document.getElementById('modalReferral'))cerrarReferral()});
+document.getElementById('btnClaimReferral').onclick=async()=>{const a=Number(document.getElementById('refAnimal1').value),b=Number(document.getElementById('refAnimal2').value);if(!a||!b||a===b)return alert('Elige dos animales diferentes.');const btn=document.getElementById('btnClaimReferral');btn.disabled=true;const r=await fetch('/api/referral/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({animal_ids:[a,b]})});const d=await r.json();alert(d.msg||'Listo');if(d.ok){cerrarReferral();location.reload()}else btn.disabled=false;};
+
 let montoRecarga=LEVELS.length?Math.max(DEPOSIT_MIN,LEVELS[0]):DEPOSIT_MIN;
 let metodoPagoSeleccionado=null;
 const modalRecarga=document.getElementById('modalRecarga');
@@ -221,25 +319,25 @@ const montosRecarga=[DEPOSIT_MIN,DEPOSIT_MIN*2,DEPOSIT_MIN*5,DEPOSIT_MIN*10];
 const montosBox=document.getElementById('montosBtn');
 montosRecarga.forEach((v,i)=>{
  let b=document.createElement('button');b.type='button';b.dataset.v=v;b.textContent=money(v);if(i===0)b.classList.add('active');
- b.onclick=()=>{document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRecarga=Number(v);document.getElementById('montoCustom').value='';document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga);document.getElementById('montoMostrar').innerText=money(montoRecarga)};
+ b.onclick=()=>{document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRecarga=Number(v);document.getElementById('montoCustom').value='';document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';document.getElementById('montoMostrar').innerText=money(montoRecarga)};
  montosBox.appendChild(b);
 });
 document.getElementById('montoCustom').placeholder='Otro monto '+SYMBOL+' (mín. '+money(DEPOSIT_MIN)+')';
-document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga);
+document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';
 document.getElementById('montoMostrar').innerText=money(montoRecarga);
-document.getElementById('montoCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRecarga=v;document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(v);document.getElementById('montoMostrar').innerText=money(v)}};
+document.getElementById('montoCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRecarga=v;document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';document.getElementById('montoMostrar').innerText=money(v)}};
 
 async function cargarMetodosPago(){
  const box=document.getElementById('paymentMethods'); const info=document.getElementById('paymentInfo');
- box.innerHTML='<div style="color:#aaa;font-size:11px">Cargando...</div>'; info.innerHTML='Selecciona un método para ver los datos de depósito.'; metodoPagoSeleccionado=null;
+ box.innerHTML='<div style="color:#aaa;font-size:11px">Cargando...</div>'; info.innerHTML=''; metodoPagoSeleccionado=null;
  try{
    const r=await fetch('/api/metodos-pago'); const d=await r.json();
-   if(!d.ok || !d.metodos || !d.metodos.length){box.innerHTML='<div style="color:#ffcc4d;font-size:12px">⚠️ No hay métodos de pago configurados para '+escHtml(d.pais||GAME_CONFIG.pais)+'.</div>';return;}
+   if(!d.ok || !d.metodos || !d.metodos.length){box.innerHTML='<div style="color:#ffcc4d;font-size:12px">⚠️ No hay un método de pago configurado para '+escHtml(d.pais||GAME_CONFIG.pais)+'.</div>';return;}
    box.innerHTML='';
    d.metodos.forEach((m,i)=>{
      const b=document.createElement('button'); b.type='button';
-     b.style.cssText='background:#1a3328;border:1px solid #d4a853;border-radius:12px;padding:10px;color:#fff;font-weight:800;cursor:pointer;text-align:left';
-     b.innerHTML=escHtml(m.nombre)+' <small style="opacity:.7">('+escHtml(m.tipo)+')</small>';
+     b.style.cssText='background:linear-gradient(180deg,#1f6b43,#12452c);border:1px solid #d4a853;border-radius:12px;padding:13px;color:#fff;font-weight:900;cursor:pointer;text-align:center;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25)';
+     b.innerHTML=escHtml(m.texto_boton || ('💳 PAGAR CON '+m.nombre.toUpperCase()));
      b.onclick=()=>seleccionarMetodoPago(m,b); box.appendChild(b);
      if(i===0) setTimeout(()=>seleccionarMetodoPago(m,b),0);
    });
@@ -247,15 +345,23 @@ async function cargarMetodosPago(){
 }
 function seleccionarMetodoPago(m,btn){
  metodoPagoSeleccionado=m;
- document.querySelectorAll('#paymentMethods button').forEach(x=>{x.style.background='#1a3328';x.style.color='#fff'});
- btn.style.background='#d4a853';btn.style.color='#000';
+ document.querySelectorAll('#paymentMethods button').forEach(x=>{x.style.background='linear-gradient(180deg,#1f6b43,#12452c)';x.style.color='#fff'});
+ btn.style.background='linear-gradient(180deg,#d4a853,#9c7420)';btn.style.color='#000';
  let html='<b style="color:#ffcc4d">'+escHtml(m.nombre)+'</b><br>';
  if(m.destino) html+='<b>Destino:</b> '+escHtml(m.destino)+'<br>';
  if(m.titular) html+='<b>Titular:</b> '+escHtml(m.titular)+'<br>';
  if(m.banco) html+='<b>Banco:</b> '+escHtml(m.banco)+'<br>';
  if(m.instrucciones) html+='<span style="color:#aaa">'+escHtml(m.instrucciones)+'</span><br>';
- if(m.destino) html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 Copiar destino</button>';
+ if(m.enlace){
+   html+='<button type="button" class="btn-pagar" style="margin-top:10px" onclick="abrirEnlacePago()">'+escHtml(m.texto_boton || ('💳 PAGAR CON '+m.nombre.toUpperCase()))+'</button>';
+ } else if(m.destino){
+   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 Copiar datos de pago</button>';
+ }
  document.getElementById('paymentInfo').innerHTML=html;
+}
+function abrirEnlacePago(){
+ if(!metodoPagoSeleccionado?.enlace)return;
+ window.open(metodoPagoSeleccionado.enlace,'_blank','noopener,noreferrer');
 }
 function copiarDestino(){if(metodoPagoSeleccionado?.destino){navigator.clipboard.writeText(metodoPagoSeleccionado.destino);alert('✅ Datos copiados')}}
 
@@ -266,8 +372,8 @@ document.getElementById('btnPagar').onclick=()=>{
  let nombre=document.getElementById('cardNombre').value.trim();if(!nombre)return alert('Ingresa el nombre de quien realizó el pago');
  let fd=new FormData();fd.append('monto',montoRecarga);fd.append('metodo_pago_id',metodoPagoSeleccionado.id);fd.append('operacion',op);fd.append('nombre',nombre);
  let file=document.getElementById('voucherFile').files[0];if(file)fd.append('voucher',file);
- document.getElementById('btnPagar').innerText='⏳ Enviando...';
- fetch('/api/recarga-bcp',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{alert(d.msg);if(d.ok){cerrarRecarga();document.getElementById('operacion').value='';document.getElementById('cardNombre').value='';document.getElementById('voucherFile').value='';}document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga)}).catch(()=>{alert('No se pudo enviar la solicitud');document.getElementById('btnPagar').innerText='✅ Enviar solicitud - '+money(montoRecarga)});
+ document.getElementById('btnPagar').innerText='⏳ Enviando comprobante...';
+ fetch('/api/recarga-bcp',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{alert(d.msg);if(d.ok){cerrarRecarga();document.getElementById('operacion').value='';document.getElementById('cardNombre').value='';document.getElementById('voucherFile').value='';}document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante'}).catch(()=>{alert('No se pudo enviar la solicitud');document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante'});
 };
 
 let montoRetiro=Math.max(WITHDRAW_MIN,LEVELS[0]); const modalRetiro=document.getElementById('modalRetiro'); function abrirRetiro(){document.getElementById('saldoModalRetiro').innerText=money(usdToLocal(saldoActual));modalRetiro.style.display='flex';cargarMisRetiros()} function cerrarRetiro(){modalRetiro.style.display='none'} document.getElementById('btn-retiro-top').onclick=abrirRetiro;
@@ -276,6 +382,7 @@ document.getElementById('montoRetiroCustom').placeholder='Otro monto '+SYMBOL+' 
 document.getElementById('btnEnviarRetiro').onclick=async()=>{let banco=document.getElementById('bancoRetiro').value.trim();if(!banco)return alert('Indica tu cuenta o medio de retiro');if(montoRetiro<WITHDRAW_MIN)return alert('El retiro mínimo es '+money(WITHDRAW_MIN));if(montoRetiro>usdToLocal(saldoActual))return alert('Saldo insuficiente');document.getElementById('btnEnviarRetiro').innerText='⏳ Sending...';let res=await fetch('/api/solicitar-retiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto:montoRetiro,banco_info:banco})});let j=await res.json();if(j.ok){alert('✅ Request sent');cerrarRetiro();cargarMisRetiros()}else{alert(j.msg);document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - '+money(montoRetiro)}};
 async function cargarMisRetiros(){let r=await fetch('/api/mis-retiros');let j=await r.json();if(j.length==0){document.getElementById('listaMisRetiros').innerHTML='';document.getElementById('misRetirosTxt').innerText='';return}document.getElementById('listaMisRetiros').innerHTML='<b>My withdrawals:</b><br>'+j.map(x=>`${x.fecha} ${x.monto_local?money(x.monto_local):money(usdToLocal(x.monto||0))} - ${x.estado}<br>`).join('');let pend=j.filter(x=>x.estado=='pendiente');if(pend.length>0)document.getElementById('misRetirosTxt').innerText='⏳ Pending withdrawal '+(pend[0].monto_local?money(pend[0].monto_local):money(usdToLocal(pend[0].monto||0)))}
 cargarMisRetiros();
+cargarReferidos();
 const partidaActual=cierre.getTime();const ultimaPartidaGuardada=localStorage.getItem('ultima_partida');fetch('/api/mis-apuestas-actuales').then(r=>r.json()).then(d=>{if(d.apuestas&&Object.keys(d.apuestas).length>0){let diffRestante=cierre-new Date();if(ultimaPartidaGuardada&&parseInt(ultimaPartidaGuardada)!==partidaActual){localStorage.setItem('ultima_partida',partidaActual);apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();return}if(diffRestante>10000){misApuestasGuardadas=d.apuestas;for(let id in misApuestasGuardadas){let card=document.querySelector(`.card[data-id="${id}"]`);if(card)card.classList.add('selected')}calc();mostrarSalaConteo();localStorage.setItem('ultima_partida',partidaActual)}}});
 </script>
 <!-- BOTON WHATSAPP ICONO -->
