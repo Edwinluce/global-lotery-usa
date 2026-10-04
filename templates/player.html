@@ -62,7 +62,6 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 .live-bets{margin:8px;background:#101b16;border:1.5px solid #ff4545;border-radius:14px;padding:12px}.live-title{display:flex;align-items:center;gap:7px;color:#ff6b6b;font-weight:900;font-size:13px}.live-dot{width:8px;height:8px;background:#ff3434;border-radius:50%;box-shadow:0 0 8px #ff3434;display:inline-block}.live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.live-stat{background:#07120e;border:1px solid #294237;border-radius:10px;padding:8px 4px;text-align:center}.live-stat small{display:block;color:#91b6a4;font-size:9px}.live-stat b{display:block;color:#ffcc4d;font-size:13px;margin-top:3px}.live-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}.live-item{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#09130f;border:1px solid #243b30;border-radius:9px;padding:8px;font-size:11px}.live-item .live-animal{font-weight:800}.live-item .live-meta{color:#8ca99a;font-size:9px}.live-item .live-amount{color:#86efac;font-weight:900;white-space:nowrap}.live-empty{color:#8ca99a;text-align:center;padding:14px;font-size:11px}
 
 </style>
-<script src="https://www.paypal.com/sdk/js?client-id=BAATHZb71SG7w_8An6Yn5_Ifeo6kb--wEm0XPk9ZPAHfi92Js7IMx8I3i-Qalp35hRECBGfFMZKBZhNzok&components=buttons&disable-funding=venmo&currency=USD"></script>
 </head>
 <body>
 <div class="top">
@@ -194,10 +193,7 @@ async function verHistorial(){
 <input id="montoCustom" type="number" class="input-card" placeholder="Otro monto">
 <div class="bcp-destacado">
 <div style="font-size:11px;color:#d4a853;font-weight:800;text-align:center">🏦 DEPÓSITO MANUAL</div>
-<div style="text-align:center;margin:6px 0">
-<b style="font-size:22px;color:#ffcc4d" id="montoMostrar">0</b>
-<div id="paypalMontoUsd" style="font-size:11px;color:#aaa;margin-top:3px;display:none"></div>
-</div>
+<div style="text-align:center;margin:6px 0"><b style="font-size:22px;color:#ffcc4d" id="montoMostrar">0</b></div>
 <div class="label-rec" style="margin-top:8px">MÉTODO DE PAGO</div>
 <div id="paymentMethods" style="display:grid;gap:8px"></div>
 <div id="paymentInfo" style="background:#111;border-radius:10px;padding:10px;font-size:12px;line-height:1.7;text-align:left;margin-top:8px">Cargando métodos de pago...</div>
@@ -350,10 +346,6 @@ const modalRecarga=document.getElementById('modalRecarga');
 function escHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function abrirRecarga(){
   document.getElementById('saldoModal').innerText=money(usdToLocal(saldoActual));
-  document.getElementById('voucherFile').style.display='';
-  document.getElementById('operacion').style.display='';
-  document.getElementById('cardNombre').style.display='';
-  document.getElementById('btnPagar').style.display='';
   modalRecarga.style.display='flex';
   cargarMetodosPago();
 }
@@ -364,13 +356,13 @@ const montosRecarga=[DEPOSIT_MIN,DEPOSIT_MIN*2,DEPOSIT_MIN*5,DEPOSIT_MIN*10];
 const montosBox=document.getElementById('montosBtn');
 montosRecarga.forEach((v,i)=>{
  let b=document.createElement('button');b.type='button';b.dataset.v=v;b.textContent=money(v);if(i===0)b.classList.add('active');
- b.onclick=()=>{document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRecarga=Number(v);document.getElementById('montoCustom').value='';document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';document.getElementById('montoMostrar').innerText=money(montoRecarga);actualizarMontoPayPal();if(metodoPagoSeleccionado)renderPayPalDynamicButton()};
+ b.onclick=()=>{document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRecarga=Number(v);document.getElementById('montoCustom').value='';document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';document.getElementById('montoMostrar').innerText=money(montoRecarga)};
  montosBox.appendChild(b);
 });
 document.getElementById('montoCustom').placeholder='Otro monto '+SYMBOL+' (mín. '+money(DEPOSIT_MIN)+')';
 document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';
 document.getElementById('montoMostrar').innerText=money(montoRecarga);
-document.getElementById('montoCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRecarga=v;document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';document.getElementById('montoMostrar').innerText=money(v);actualizarMontoPayPal();clearTimeout(window.__paypalAmountTimer);window.__paypalAmountTimer=setTimeout(()=>{if(metodoPagoSeleccionado)renderPayPalDynamicButton()},350)}};
+document.getElementById('montoCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRecarga=v;document.querySelectorAll('#montosBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante';document.getElementById('montoMostrar').innerText=money(v)}};
 
 async function cargarMetodosPago(){
  const box=document.getElementById('paymentMethods'); const info=document.getElementById('paymentInfo');
@@ -401,161 +393,37 @@ function seleccionarMetodoPago(m,btn){
  document.querySelectorAll('#paymentMethods button').forEach(x=>{x.style.background='linear-gradient(180deg,#1f6b43,#12452c)';x.style.color='#fff'});
  btn.style.background='linear-gradient(180deg,#d4a853,#9c7420)';btn.style.color='#000';
 
- const esPayPal=String(m.tipo||'').toLowerCase().includes('paypal') || String(m.nombre||'').toLowerCase().includes('paypal');
- const info=document.getElementById('paymentInfo');
+ let html='<b style="color:#ffcc4d">'+escHtml(m.nombre)+'</b><br>';
+ if(m.destino) html+='<b>Destino:</b> '+escHtml(m.destino)+'<br>';
+ if(m.titular) html+='<b>Titular:</b> '+escHtml(m.titular)+'<br>';
+ if(m.banco) html+='<b>Banco:</b> '+escHtml(m.banco)+'<br>';
+ if(m.instrucciones) html+='<span style="color:#aaa">'+escHtml(m.instrucciones)+'</span><br>';
+
+ const tipo=String(m.tipo||'').toLowerCase();
+ const nombre=String(m.nombre||'').toLowerCase();
+ const esPayPal=tipo.includes('paypal') || nombre.includes('paypal');
+ const enlace=String(m.enlace||'').trim();
 
  if(esPayPal){
-   info.innerHTML=
-     '<b style="color:#ffcc4d">'+escHtml(m.nombre)+'</b><br>'+
-     '<div style="margin-top:8px;color:#fff;font-weight:800">💳 Paga el monto que tú elijas con PayPal</div>'+
-     '<div style="font-size:11px;color:#aaa;margin-top:4px">El monto se enviará a PayPal en USD. Puedes cambiar la cantidad arriba antes de pagar.</div>'+
-     '<div id="paypal-dynamic-button-box" style="margin-top:12px;background:#fff;border-radius:12px;padding:10px;min-height:48px"></div>'+
-     '<div id="paypal-payment-status" style="font-size:11px;text-align:center;margin-top:8px;color:#aaa"></div>';
-
-   document.getElementById('voucherFile').style.display='none';
-   document.getElementById('operacion').style.display='none';
-   document.getElementById('cardNombre').style.display='none';
-   document.getElementById('btnPagar').style.display='none';
-   document.querySelector('#modalRecarga .label-rec:nth-of-type(2)')?.style && (document.querySelector('#modalRecarga .label-rec:nth-of-type(2)').style.display='none');
-
-   actualizarMontoPayPal();
-   renderPayPalDynamicButton();
- } else {
-   info.innerHTML='<b style="color:#ffcc4d">'+escHtml(m.nombre)+'</b><br>'+
-     (m.destino?'<b>Destino:</b> '+escHtml(m.destino)+'<br>':'')+
-     (m.titular?'<b>Titular:</b> '+escHtml(m.titular)+'<br>':'')+
-     (m.banco?'<b>Banco:</b> '+escHtml(m.banco)+'<br>':'')+
-     (m.instrucciones?'<span style="color:#aaa">'+escHtml(m.instrucciones)+'</span><br>':'')+
-     (m.enlace?'<button type="button" class="btn-pagar" style="margin-top:10px" onclick="abrirEnlacePago()">'+escHtml(m.texto_boton || ('💳 PAGAR CON '+m.nombre.toUpperCase()))+'</button>':'')+
-     (!m.enlace && m.destino?'<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 Copiar datos de pago</button>':'');
-   document.getElementById('voucherFile').style.display='';
-   document.getElementById('operacion').style.display='';
-   document.getElementById('cardNombre').style.display='';
-   document.getElementById('btnPagar').style.display='';
-   actualizarMontoPayPal();
- }
-}
-
-function actualizarMontoPayPal(){
- const el=document.getElementById('paypalMontoUsd');
- if(!el)return;
- const usd=Number(localToUsd(montoRecarga)||0);
- const esPayPal=metodoPagoSeleccionado && (
-   String(metodoPagoSeleccionado.tipo||'').toLowerCase().includes('paypal') ||
-   String(metodoPagoSeleccionado.nombre||'').toLowerCase().includes('paypal')
- );
- if(esPayPal){
-   el.style.display='block';
-   el.innerText='PayPal cobrará aproximadamente US$ '+usd.toFixed(2);
- }else{
-   el.style.display='none';
- }
-}
-
-let paypalRenderToken=0;
-async function renderPayPalDynamicButton(){
- const box=document.getElementById('paypal-dynamic-button-box');
- if(!box || !metodoPagoSeleccionado)return;
-
- const myToken=++paypalRenderToken;
- const montoLocal=Number(montoRecarga||0);
- const montoUsd=Number(localToUsd(montoLocal)||0);
-
- if(montoLocal < DEPOSIT_MIN || montoUsd <= 0){
-   box.innerHTML='<div style="color:#b00;font-weight:800;text-align:center">Selecciona un monto válido.</div>';
-   return;
+   html+='<div style="margin-top:10px;color:#ffcc4d;font-weight:900">💳 PAGO SEGURO CON PAYPAL</div>';
+   if(enlace){
+     html+='<button type="button" class="btn-pagar" style="margin-top:10px" onclick="abrirEnlacePago()">💳 CONTINUAR A PAYPAL</button>';
+     html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarEnlacePago()">📋 COPIAR ENLACE DE PAYPAL</button>';
+   }else{
+     html+='<div style="color:#ff4757;margin-top:8px;font-weight:800">⚠️ El enlace de PayPal todavía no está configurado.</div>';
+   }
+ }else if(enlace){
+   html+='<button type="button" class="btn-pagar" style="margin-top:10px" onclick="abrirEnlacePago()">💳 ABRIR PAGO</button>';
+   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarEnlacePago()">📋 COPIAR ENLACE</button>';
+ }else if(m.destino){
+   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 COPIAR DATOS DE PAGO</button>';
  }
 
- box.innerHTML='<div style="color:#555;font-weight:800;text-align:center">Cargando PayPal...</div>';
-
- let tries=0;
- while(!window.paypal?.Buttons && tries<30){
-   await new Promise(r=>setTimeout(r,250));
-   tries++;
- }
- if(myToken!==paypalRenderToken)return;
-
- if(!window.paypal?.Buttons){
-   box.innerHTML='<div style="color:#b00;font-weight:800;text-align:center">No se pudo cargar PayPal. Recarga la página.</div>';
-   return;
- }
-
- try{
-   box.innerHTML='';
-   const buttons=paypal.Buttons({
-     style:{
-       layout:'vertical',
-       shape:'rect',
-       label:'paypal',
-       height:45
-     },
-     createOrder:function(data,actions){
-       const actual=Number(localToUsd(montoRecarga)||0).toFixed(2);
-       return actions.order.create({
-         purchase_units:[{
-           description:'Recarga de saldo - Global Lottery',
-           amount:{currency_code:'USD',value:actual}
-         }]
-       });
-     },
-     onApprove:async function(data,actions){
-       try{
-         const status=document.getElementById('paypal-payment-status');
-         if(status)status.innerText='Procesando el pago...';
-         const details=await actions.order.capture();
-         if(!details || details.status!=='COMPLETED'){
-           throw new Error('El pago no quedó completado');
-         }
-
-         const fd=new FormData();
-         fd.append('monto',String(montoRecarga));
-         fd.append('metodo_pago_id',String(metodoPagoSeleccionado.id||''));
-         fd.append('operacion','PAYPAL-'+String(data.orderID||''));
-         fd.append('nombre','Pago realizado con PayPal');
-
-         const r=await fetch('/api/recarga-bcp',{
-           method:'POST',
-           body:fd,
-           credentials:'same-origin'
-         });
-         const d=await r.json();
-
-         if(!d.ok){
-           if(status)status.innerHTML='<span style="color:#b00">El pago de PayPal fue realizado, pero no se pudo registrar la recarga. Guarda este ID: '+escHtml(data.orderID)+'</span>';
-           alert('El pago se realizó en PayPal, pero la recarga no pudo registrarse automáticamente. ID: '+data.orderID);
-           return;
-         }
-
-         if(status)status.innerHTML='<span style="color:#16803c;font-weight:900">✅ Pago completado. Recarga enviada para aprobación.</span>';
-         alert('✅ Pago PayPal completado. Tu recarga quedó registrada y será procesada por administración.');
-         setTimeout(()=>location.reload(),1200);
-       }catch(e){
-         console.error('PAYPAL CAPTURE:',e);
-         const status=document.getElementById('paypal-payment-status');
-         if(status)status.innerText='No se pudo confirmar el pago. Conserva tu ID de PayPal: '+String(data.orderID||'');
-         alert('No se pudo confirmar el pago. ID de PayPal: '+String(data.orderID||''));
-       }
-     },
-     onCancel:function(data){
-       const status=document.getElementById('paypal-payment-status');
-       if(status)status.innerText='Pago cancelado.';
-     },
-     onError:function(err){
-       console.error('PAYPAL BUTTON ERROR:',err);
-       const status=document.getElementById('paypal-payment-status');
-       if(status)status.innerText='PayPal informó un error. Intenta nuevamente.';
-     }
-   });
-
-   await buttons.render('#paypal-dynamic-button-box');
- }catch(e){
-   console.error('PAYPAL DYNAMIC BUTTON:',e);
-   box.innerHTML='<div style="color:#b00;font-weight:800;text-align:center">No se pudo cargar el botón de PayPal.</div>';
- }
+ document.getElementById('paymentInfo').innerHTML=html;
 }
 
 function abrirEnlacePago(){
- if(!metodoPagoSeleccionado)return;
+ if(!metodoPagoSeleccionado)return alert('⚠️ Selecciona PayPal primero.');
  const enlace=String(metodoPagoSeleccionado.enlace||'').trim();
  const tipo=String(metodoPagoSeleccionado.tipo||'').toLowerCase();
  const nombre=String(metodoPagoSeleccionado.nombre||'').toLowerCase();
@@ -565,7 +433,32 @@ function abrirEnlacePago(){
  if(!/^https?:\/\//i.test(urlPago))return alert('⚠️ El enlace de PayPal no es válido.');
  window.location.href=urlPago;
 }
-function copiarDestino(){if(metodoPagoSeleccionado?.destino){navigator.clipboard.writeText(metodoPagoSeleccionado.destino);alert('✅ Datos copiados')}}
+
+function copiarEnlacePago(){
+ if(!metodoPagoSeleccionado)return;
+ const enlace=String(metodoPagoSeleccionado.enlace||'').trim();
+ const tipo=String(metodoPagoSeleccionado.tipo||'').toLowerCase();
+ const nombre=String(metodoPagoSeleccionado.nombre||'').toLowerCase();
+ const destino=String(metodoPagoSeleccionado.destino||'').trim();
+ const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
+ if(!urlPago)return alert('⚠️ No hay un enlace de PayPal configurado.');
+ if(navigator.clipboard && window.isSecureContext){
+   navigator.clipboard.writeText(urlPago).then(()=>alert('✅ Enlace de PayPal copiado')).catch(()=>prompt('Copia este enlace:',urlPago));
+ }else{
+   prompt('Copia este enlace de PayPal:',urlPago);
+ }
+}
+
+function copiarDestino(){
+ if(metodoPagoSeleccionado?.destino){
+   const dato=metodoPagoSeleccionado.destino;
+   if(navigator.clipboard && window.isSecureContext){
+     navigator.clipboard.writeText(dato).then(()=>alert('✅ Datos copiados')).catch(()=>prompt('Copia estos datos:',dato));
+   }else{
+     prompt('Copia estos datos:',dato);
+   }
+ }
+}
 
 document.getElementById('btnPagar').onclick=()=>{
  if(montoRecarga<DEPOSIT_MIN)return alert('La recarga mínima es '+money(DEPOSIT_MIN));
