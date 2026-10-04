@@ -20,6 +20,12 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 .box small{color:#d4a853;font-size:10px}
 .box b{font-size:11px;display:block}
 .box b.red{color:#ff4444;font-size:18px;font-weight:800}
+.apuestas-live{margin:8px;background:#0d1d16;border:1.5px solid #1ee66d55;border-radius:14px;padding:12px;box-shadow:0 0 16px rgba(30,230,109,.06)}
+.apuestas-live-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.live-title{font-size:12px;color:#86efac;font-weight:900}.live-dot{display:inline-block;width:7px;height:7px;background:#ff3b30;border-radius:50%;box-shadow:0 0 8px #ff3b30;margin-right:5px;animation:pulseLive 1.2s infinite}
+@keyframes pulseLive{0%,100%{opacity:1}50%{opacity:.35}}
+.live-stats{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:6px;margin-bottom:10px}.live-stat{background:#07120e;border:1px solid #214234;border-radius:10px;padding:7px;text-align:center}.live-stat small{display:block;color:#78998b;font-size:9px}.live-stat b{display:block;color:#ffcc4d;font-size:15px;margin-top:2px}
+.live-feed{max-height:220px;overflow:auto;display:flex;flex-direction:column;gap:6px}.live-empty{text-align:center;color:#607d70;font-size:11px;padding:12px}.live-item{display:flex;align-items:center;gap:8px;background:#111a16;border:1px solid #1d352a;border-radius:10px;padding:7px 8px}.live-animal{width:34px;height:34px;border-radius:9px;background:#172c22;display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}.live-main{min-width:0;flex:1}.live-main b{display:block;font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.live-main small{display:block;color:#6f8f81;font-size:9px;margin-top:1px}.live-amount{font-weight:900;color:#22c55e;font-size:11px;white-space:nowrap}.live-refresh{font-size:9px;color:#587568}
 .pozo-box{margin:8px;background:linear-gradient(180deg,#132a22,#0a1a14);border:2px solid #22c55e;border-radius:14px;padding:12px;text-align:center}.pozo-box small{display:block;color:#d4a853;font-size:10px}.pozo-box b{display:block;color:#ffcc4d;font-size:24px;margin-top:2px}.pozo-box span{display:block;color:#9ecbb6;font-size:10px;margin-top:2px}.historial{margin:8px;background:#0f1f18;border:1px solid #d4a853;border-radius:12px;padding:10px}
 .historial-head{display:flex;justify-content:space-between;align-items:center}
 .historial-items{display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:4px}
@@ -115,7 +121,19 @@ async function verHistorial(){
 <div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
 <div class="box"><small>PLAYING</small><b id="jugadores">In room</b></div>
 </div>
-<div class="pozo-box"><small>🏆 POZO A REPARTIR</small><b id="pozoActual">$ 0.00</b></div>
+<div class="pozo-box"><small>🏆 POZO A REPARTIR</small><b id="pozoActual">$ 0.00</b><span>75% de la recaudación · 25% para la plataforma</span></div>
+<div class="apuestas-live">
+  <div class="apuestas-live-head">
+    <div class="live-title"><span class="live-dot"></span>APUESTAS EN VIVO</div>
+    <div class="live-refresh" id="apuestasLiveEstado">Actualizando...</div>
+  </div>
+  <div class="live-stats">
+    <div class="live-stat"><small>ANIMALES JUGADOS</small><b id="liveAnimales">0</b></div>
+    <div class="live-stat"><small>APUESTAS</small><b id="liveCantidad">0</b></div>
+    <div class="live-stat"><small>TOTAL APOSTADO</small><b id="liveTotal">$ 0.00</b></div>
+  </div>
+  <div id="liveFeed" class="live-feed"><div class="live-empty">Esperando nuevas apuestas...</div></div>
+</div>
 <div class="historial">
 <div class="historial-head">
 <b style="font-size:11px;color:#d4a853">📜 LAST WINNERS</b>
@@ -251,6 +269,31 @@ async function cargarPozo(){
 }
 cargarPozo();
 setInterval(cargarPozo,5000);
+async function cargarApuestasEnVivo(){
+  try{
+    const r=await fetch('/api/apuestas-en-vivo');
+    const d=await r.json();
+    if(!d.ok)return;
+    document.getElementById('liveAnimales').innerText=d.animales_jugados||0;
+    document.getElementById('liveCantidad').innerText=d.cantidad_apuestas||0;
+    document.getElementById('liveTotal').innerText=money(Number(d.total_local||0));
+    document.getElementById('apuestasLiveEstado').innerText='En vivo · '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    const feed=document.getElementById('liveFeed');
+    if(!d.lista || !d.lista.length){feed.innerHTML='<div class="live-empty">Aún no hay apuestas en este sorteo.</div>';return;}
+    feed.innerHTML=d.lista.map(x=>{
+      const a=animales.find(y=>y[0]===Number(x.animal_id));
+      const emoji=a?a[2]:'🎯';
+      const nombre=a?a[1]:(x.animal||'Animal');
+      const monto=Number(x.monto||0).toLocaleString('es-CL',{minimumFractionDigits:DECIMALS,maximumFractionDigits:DECIMALS});
+      return `<div class="live-item"><div class="live-animal">${emoji}</div><div class="live-main"><b>${escHtml(x.usuario||'Jugador')} · ${nombre}</b><small>${x.hora||''} · nueva apuesta</small></div><div class="live-amount">${escHtml(x.symbol||'')} ${monto}</div></div>`;
+    }).join('');
+  }catch(e){
+    document.getElementById('apuestasLiveEstado').innerText='Sin conexión';
+  }
+}
+cargarApuestasEnVivo();
+setInterval(cargarApuestasEnVivo,3000);
+
 function getCierreGlobal(){const unaHora=60*60*1000;return new Date(Math.ceil(Date.now()/unaHora)*unaHora)} let cierre=getCierreGlobal();
 setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){mostrarResultado();cierre=getCierreGlobal();apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cargarHistorial()}},1000);
 let REF_CODE='';
