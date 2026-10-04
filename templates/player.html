@@ -375,7 +375,16 @@ async function cargarMetodosPago(){
      const b=document.createElement('button'); b.type='button';
      b.style.cssText='background:linear-gradient(180deg,#1f6b43,#12452c);border:1px solid #d4a853;border-radius:12px;padding:13px;color:#fff;font-weight:900;cursor:pointer;text-align:center;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25)';
      b.innerHTML=escHtml(m.texto_boton || ('💳 PAGAR CON '+m.nombre.toUpperCase()));
-     b.onclick=()=>seleccionarMetodoPago(m,b); box.appendChild(b);
+     b.onclick=()=>{
+       seleccionarMetodoPago(m,b);
+       const tipo=String(m.tipo||'').toLowerCase();
+       const nombre=String(m.nombre||'').toLowerCase();
+       const enlace=String(m.enlace||'').trim();
+       const destino=String(m.destino||'').trim();
+       const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
+       if(urlPago && /paypal\.com/i.test(urlPago)) window.location.assign(urlPago);
+     };
+     box.appendChild(b);
      if(i===0) setTimeout(()=>seleccionarMetodoPago(m,b),0);
    });
  }catch(e){box.innerHTML='<div style="color:#ff4757">No se pudieron cargar los métodos de pago.</div>';}
@@ -397,8 +406,14 @@ function seleccionarMetodoPago(m,btn){
  document.getElementById('paymentInfo').innerHTML=html;
 }
 function abrirEnlacePago(){
- if(!metodoPagoSeleccionado?.enlace)return;
- window.open(metodoPagoSeleccionado.enlace,'_blank','noopener,noreferrer');
+ if(!metodoPagoSeleccionado)return;
+ const enlace=String(metodoPagoSeleccionado.enlace||'').trim();
+ const tipo=String(metodoPagoSeleccionado.tipo||'').toLowerCase();
+ const nombre=String(metodoPagoSeleccionado.nombre||'').toLowerCase();
+ const destino=String(metodoPagoSeleccionado.destino||'').trim();
+ const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
+ if(!urlPago)return;
+ window.location.assign(urlPago);
 }
 function copiarDestino(){if(metodoPagoSeleccionado?.destino){navigator.clipboard.writeText(metodoPagoSeleccionado.destino);alert('✅ Datos copiados')}}
 
