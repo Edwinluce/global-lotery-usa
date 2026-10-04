@@ -87,7 +87,6 @@ body{background:#07120e;color:#fff;padding-bottom:90px}
 
 <div style="display:flex;gap:10px;margin:12px 0">
   <button onclick="verMisApuestas()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">🎯 Mis Jugadas</button>
-  <button onclick="verHistorial()" style="flex:1;padding:12px;background:#202020;color:#fff;border:1px solid #2a2a2a;border-radius:14px;font-weight:800">📜 Últimos que Salieron</button>
 </div>
 
 <div id="panelHistorial" style="display:none;background:#151515;border:1px solid #252525;border-radius:16px;padding:14px;margin-bottom:12px">
@@ -107,69 +106,7 @@ async function verMisApuestas(){
   html+='</table>';
   document.getElementById('contenidoHistorial').innerHTML=html;
 }
-async function verHistorial(){
-  document.getElementById('panelHistorial').style.display='block';
-  document.getElementById('tituloHistorial').innerText='📜 Últimos animales que salieron';
-  document.getElementById('contenidoHistorial').innerText='Cargando...';
-  let r=await fetch('/api/historial-global'); let data=await r.json();
-  let html=''; data.forEach(x=>{html+=`#${x.id} - ${x.fecha} - <b>🦁 ${x.ganador}</b> (S/ ${x.recaudado})<br>`});
-  document.getElementById('contenidoHistorial').innerHTML=html || 'Aún no hay sorteos finalizados';
-}
-</script>
-<div class="info">
-<div class="box"><small>CURRENT PERIOD</small><b id="periodo">{{ sorteo[0] if sorteo else 0 }}</b></div>
-<div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
-<div class="box"><small>PLAYING</small><b id="jugadores">In room</b></div>
-</div>
-<div class="pozo-box"><small>🏆 POZO A REPARTIR</small><b id="pozoActual">$ 0.00</b></div>
-<div class="apuestas-live">
-  <div class="apuestas-live-head">
-    <div class="live-title"><span class="live-dot"></span>APUESTAS EN VIVO</div>
-    <div class="live-refresh" id="apuestasLiveEstado">Actualizando...</div>
-  </div>
-  <div class="live-stats">
-    <div class="live-stat"><small>ANIMALES JUGADOS</small><b id="liveAnimales">0</b></div>
-    <div class="live-stat"><small>APUESTAS</small><b id="liveCantidad">0</b></div>
-    <div class="live-stat"><small>TOTAL APOSTADO</small><b id="liveTotal">$ 0.00</b></div>
-  </div>
-  <div id="liveFeed" class="live-feed"><div class="live-empty">Esperando nuevas apuestas...</div></div>
-</div>
-<div class="historial">
-<div class="historial-head">
-<b style="font-size:11px;color:#d4a853">📜 LAST WINNERS</b>
-<small style="color:#5a7a6d;font-size:10px;cursor:pointer" onclick="cargarHistorial()" id="btnRefreshHist">↻ Refresh</small>
-</div>
-<div id="historialAnimales" class="historial-items"></div>
-</div>
-<div class="grid" id="grid"></div>
-<div class="panel">
-<div style="font-size:12px;color:#d4a853">💰 BET AMOUNT · <span id="rangoApuesta"></span></div>
-<div class="monto-row" id="montoPorApuesta"></div>
-<div class="total"><span>Total bet:</span><b id="total">$ 0.00</b></div>
-<div class="actions">
-<button type="button" class="btn-green" id="btn-confirmar">✅ Confirm Bet</button>
-<button type="button" class="btn-red" id="btn-limpiar">🗑️ Clear</button>
-</div>
-<div style="margin-top:8px;text-align:center"><small id="misRetirosTxt" style="color:#aaa;font-size:10px"></small></div>
-</div>
-<div id="modalSala" class="modal-sala">
-<h2>🎯 Your Picks</h2>
-<div id="listaElegidos" class="animales-elegidos"></div>
-<div style="margin-top:10px;color:#d4a853;font-size:12px">DRAW IN</div>
-<div id="countdownSala" class="count">60:00</div>
-<div style="font-size:12px;color:#aaa">Total bet: <b id="totalSala" style="color:#ffcc4d">$ 0</b><br>Wait for result...</div>
-<div style="margin-top:20px;font-size:10px;color:#666">Pagos manuales • Room ID {{ sorteo[0] if sorteo else 0 }}</div>
-</div>
-<div id="modalResultado" class="modal-sala">
-<h2>🏆 RESULT</h2>
-<div class="ganador-box">
-<div id="ganadorEmoji" class="emoji">🦁</div>
-<div id="ganadorNombre" style="font-size:22px;font-weight:900;color:#ffcc4d;margin-top:8px">LEON</div>
-<div id="ganadorNum" style="font-size:12px;color:#aaa">N° 07</div>
-<div id="ganasteTexto" style="margin-top:12px;font-size:14px;line-height:1.4"></div>
-</div>
-<button class="btn-volver" onclick="volverSala()">🔄 Back to room</button>
-</div>
+
 
 
 <div id="modalReferral" class="modal-recarga">
