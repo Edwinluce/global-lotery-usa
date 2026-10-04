@@ -53,10 +53,10 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 <div class="modal" id="modalMetodosPago">
   <div class="modal-box" style="max-width:900px">
     <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0;color:#e9c97a">💳 Métodos de Pago Manuales</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
-    <div class="rate-note">Configura el método que verá cada jugador según su país. Puedes poner un enlace directo (PayPal, Tenpo, QR/web, etc.) y definir el nombre exacto del botón. No necesitas tocar el código para cambiar estos datos.</div>
+    <div class="rate-note">Aquí puedes cambiar las cuentas/números que verá cada jugador según su país. No necesitas tocar el código ni volver a desplegar para cambiar un dato.</div>
     <div class="flex" style="margin-top:12px"><button class="btn btn-green" onclick="agregarMetodoPago()">➕ Agregar método</button><button class="btn btn-gray" onclick="abrirMetodosPago()">↻ Actualizar</button></div>
     <div id="metodosEstado" style="margin:12px 0;color:#1ee66d;font-weight:800"></div>
-    <div style="overflow:auto"><table><thead><tr><th>País</th><th>Método</th><th>Destino / número / correo</th><th>Titular</th><th>Banco</th><th>Instrucciones</th><th>Texto botón</th><th>Enlace directo</th><th>Activo</th><th>Acción</th></tr></thead><tbody id="tablaMetodosPago"></tbody></table></div>
+    <div style="overflow:auto"><table><thead><tr><th>País</th><th>Método</th><th>Destino / número / correo</th><th>Titular</th><th>Banco</th><th>Instrucciones</th><th>Activo</th><th>Acción</th></tr></thead><tbody id="tablaMetodosPago"></tbody></table></div>
   </div>
 </div>
 
@@ -72,7 +72,6 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 <div class="modal" id="modalGanancias"><div class="modal-box"><div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">📜 Ganancias</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div><table id="tablaGanancias"></table></div></div>
 
 <div class="modal" id="modalApuestas">
-<div style="background:#111;border:1px solid #333;border-radius:12px;padding:10px;margin-bottom:10px;color:#aaa;font-size:12px">📊 Exposición informativa: muestra apuestas, premio potencial x25 y resultado matemático si ese animal resultara ganador. No modifica ni decide el sorteo.</div>
   <div class="modal-box">
     <div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#e9c97a">🎯 Apuestas Actual - Animales</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div>
     <div id="totalApuestas" style="margin:12px 0;color:#1ee66d;font-weight:900"></div>
@@ -83,26 +82,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 
 <div class="modal" id="modalRetiros"><div class="modal-box"><div style="display:flex;justify-content:space-between"><h3 style="margin:0;color:#ff3a3a">💸 Retiros</h3><button class="btn btn-dark" onclick="cerrar()">X</button></div><table id="tablaRetiros"></table></div></div>
 
-
-<div class="card" style="border:1.5px solid #22c55e">
-  <div style="font-weight:900;color:#86efac;margin-bottom:8px">👥 PROGRAMA DE REFERIDOS</div>
-  <div style="font-size:12px;color:#aaa">Un referido queda <b>calificado</b> cuando su primera recarga es aprobada. Cada 2 referidos calificados genera 2 animales gratis.</div>
-  <button class="btn btn-green" style="margin-top:10px" onclick="abrirReferidos()">Ver referidos</button>
-</div>
-<div id="modalReferidos" class="modal"><div class="modal-box"><h2>👥 Referidos</h2><div id="tablaReferidos">Cargando...</div><button class="btn btn-dark" onclick="cerrar()" style="margin-top:12px">Cerrar</button></div></div>
-
 <script>
-async function abrirReferidos(){
- document.getElementById('modalReferidos').style.display='flex';
- const box=document.getElementById('tablaReferidos'); box.innerHTML='Cargando...';
- const r=await fetch('/api/admin/referidos'); const d=await r.json();
- if(!d.ok){box.innerHTML=d.msg||'No se pudo cargar';return;}
- if(!d.referidos.length){box.innerHTML='<p style="color:#aaa">Todavía no hay referidos registrados.</p>';return;}
- let h='<table><tr><th>Quién invita</th><th>Nuevo usuario</th><th>Estado</th><th>Fecha</th></tr>';
- d.referidos.forEach(x=>{const st=x.status==='qualified'?'✅ CALIFICADO':'⏳ REGISTRADO';h+=`<tr><td>${x.referrer_email}</td><td>${x.referred_email}</td><td>${st}</td><td>${x.qualified_at||x.registered_at}</td></tr>`});
- h+='</table>'; box.innerHTML=h;
-}
-
 const CSRF_TOKEN = {{ csrf_token|tojson }};
 function cerrar(){document.querySelectorAll('.modal').forEach(m=>m.style.display='none')}
 async function control(a){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({accion:a})});location.reload()}
@@ -154,7 +134,7 @@ async function rechazarRetiro(id){
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function escAttr(v){return esc(v);}
 function metodoFila(x){
- const paises=['Perú','Chile','USA','Venezuela','Colombia','México','Ecuador','Argentina','Bolivia'];
+ const paises=['Perú','Chile','USA','Colombia','México','Ecuador','Argentina','Bolivia'];
  const opts=paises.map(p=>`<option value="${escAttr(p)}" ${x.pais===p?'selected':''}>${esc(p)}</option>`).join('');
  return `<tr data-id="${x.id||''}">
  <td><select id="mp_pais_${x.id||'new'}" style="background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px">${opts}</select></td>
@@ -163,8 +143,7 @@ function metodoFila(x){
  <td><input id="mp_titular_${x.id||'new'}" value="${escAttr(x.titular||'')}" placeholder="Titular" style="width:130px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
  <td><input id="mp_banco_${x.id||'new'}" value="${escAttr(x.banco||'')}" placeholder="Banco" style="width:110px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
  <td><input id="mp_inst_${x.id||'new'}" value="${escAttr(x.instrucciones||'')}" placeholder="Instrucciones" style="width:180px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
- <td><input id="mp_boton_${x.id||'new'}" value="${escAttr(x.texto_boton||'')}" placeholder="💳 COMPRAR" style="width:160px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
- <td><input id="mp_enlace_${x.id||'new'}" value="${escAttr(x.enlace||'')}" placeholder="https://..." style="width:220px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_enlace_${x.id||'new'}" value="${escAttr(x.enlace||'')}" placeholder="Enlace PayPal https://..." style="width:250px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
  <td><input id="mp_activo_${x.id||'new'}" type="checkbox" ${x.activo!==false?'checked':''}></td>
  <td><button class="btn btn-green" style="padding:7px 10px" onclick="guardarMetodoPago(${x.id||0})">Guardar</button>${x.id?`<button class="btn btn-red" style="padding:7px 10px;margin-left:4px" onclick="eliminarMetodoPago(${x.id})">X</button>`:''}</td></tr>`;
 }
@@ -175,7 +154,7 @@ async function abrirMetodosPago(){
   const r=await fetch('/api/admin/metodos-pago'); const d=await r.json();
   if(!d.ok){document.getElementById('metodosEstado').innerText=d.msg||'Error';return;}
   document.getElementById('tablaMetodosPago').innerHTML=d.metodos.map(metodoFila).join('');
-  document.getElementById('metodosEstado').innerText='Edita los datos, el texto del botón y el enlace directo. Luego pulsa Guardar.';
+  document.getElementById('metodosEstado').innerText='Edita los datos y pulsa Guardar.';
  }catch(e){document.getElementById('metodosEstado').innerText='Error: '+e;}
 }
 function agregarMetodoPago(){
@@ -185,11 +164,11 @@ function agregarMetodoPago(){
 }
 async function guardarMetodoPago(id){
  const k=id||'new';
- const data={id:id||0,pais:document.getElementById('mp_pais_'+k)?.value,nombre:document.getElementById('mp_nombre_'+k)?.value,tipo:'manual',destino:document.getElementById('mp_destino_'+k)?.value,titular:document.getElementById('mp_titular_'+k)?.value,banco:document.getElementById('mp_banco_'+k)?.value,instrucciones:document.getElementById('mp_inst_'+k)?.value,texto_boton:document.getElementById('mp_boton_'+k)?.value,enlace:document.getElementById('mp_enlace_'+k)?.value,activo:document.getElementById('mp_activo_'+k)?.checked};
+ const data={id:id||0,pais:document.getElementById('mp_pais_'+k)?.value,nombre:document.getElementById('mp_nombre_'+k)?.value,tipo:'manual',destino:document.getElementById('mp_destino_'+k)?.value,titular:document.getElementById('mp_titular_'+k)?.value,banco:document.getElementById('mp_banco_'+k)?.value,instrucciones:document.getElementById('mp_inst_'+k)?.value,enlace:document.getElementById('mp_enlace_'+k)?.value,activo:document.getElementById('mp_activo_'+k)?.checked};
  // For a new row, the DOM key is "new" because the row has no DB id.
  if(!id){
    const tr=document.querySelector('#tablaMetodosPago tr:last-child');
-   data.pais=tr.querySelector('select')?.value; data.nombre=tr.querySelectorAll('input')[0]?.value; data.destino=tr.querySelectorAll('input')[1]?.value; data.titular=tr.querySelectorAll('input')[2]?.value; data.banco=tr.querySelectorAll('input')[3]?.value; data.instrucciones=tr.querySelectorAll('input')[4]?.value; data.texto_boton=tr.querySelectorAll('input')[5]?.value; data.enlace=tr.querySelectorAll('input')[6]?.value; data.activo=tr.querySelector('input[type=checkbox]')?.checked;
+   data.pais=tr.querySelector('select')?.value; data.nombre=tr.querySelectorAll('input')[0]?.value; data.destino=tr.querySelectorAll('input')[1]?.value; data.titular=tr.querySelectorAll('input')[2]?.value; data.banco=tr.querySelectorAll('input')[3]?.value; data.instrucciones=tr.querySelectorAll('input')[4]?.value; data.enlace=tr.querySelectorAll('input')[5]?.value; data.activo=tr.querySelector('input[type=checkbox]')?.checked;
  }
  if(!data.nombre){alert('Escribe el nombre del método');return;}
  const r=await fetch('/api/admin/metodos-pago',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify(data)}); const j=await r.json();
@@ -241,12 +220,12 @@ async function abrirApuestas(){
      document.getElementById('totalApuestas').innerText=`Sorteo #${data.sorteo_id} - Aún sin apuestas. Apuesta con un usuario para probar.`;
      return;
    }
-   document.getElementById('totalApuestas').innerText=`TOTAL AHORA: $ ${data.total.toFixed ? data.total.toFixed(2) : data.total} USD | ${data.lista.length} apuestas`;
+   document.getElementById('totalApuestas').innerText=`TOTAL AHORA: S/ ${data.total} | ${data.lista.length} apuestas`;
    let max=Math.max(...data.por_animal.map(x=>x.total)); let resumen='<div style="background:#0f0f0f;padding:12px;border-radius:12px">';
-   data.por_animal.forEach(x=>{let pct=max>0?(x.total/max*100):0; resumen+=`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between"><span>🦁 ${x.animal}</span><span>$ ${x.total.toFixed ? x.total.toFixed(2) : x.total} USD (${x.cantidad})</span></div><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div><small style="color:#aaa">Premio potencial x25: $ ${Number(x.premio_potencial||0).toFixed(2)} USD · Resultado matemático si gana: $ ${Number(x.resultado_si_gana||0).toFixed(2)} USD</small></div>`}); resumen+='</div>';
+   data.por_animal.forEach(x=>{let pct=max>0?(x.total/max*100):0; resumen+=`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between"><span>🦁 ${x.animal}</span><span>S/ ${x.total} (${x.cantidad})</span></div><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></div>`}); resumen+='</div>';
    document.getElementById('resumenAnimales').innerHTML=resumen;
-   let html='<tr><th>Hora</th><th>User</th><th>Animal</th><th>Monto USD</th></tr>';
-   data.lista.forEach(x=>{html+=`<tr><td>${x.fecha}</td><td>${x.email.substring(0,12)}</td><td><b>${x.animal}</b></td><td>$ ${Number(x.monto||0).toFixed(2)}</td></tr>`});
+   let html='<tr><th>Hora</th><th>User</th><th>Animal</th><th>Monto</th></tr>';
+   data.lista.forEach(x=>{html+=`<tr><td>${x.fecha}</td><td>${x.email.substring(0,12)}</td><td><b>${x.animal}</b></td><td>S/ ${x.monto}</td></tr>`});
    document.getElementById('tablaApuestas').innerHTML=html;
  }catch(e){document.getElementById('totalApuestas').innerText='Error: '+e}
 }
