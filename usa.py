@@ -224,7 +224,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto FLOAT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id SERIAL PRIMARY KEY, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, enlace TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id SERIAL PRIMARY KEY, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id SERIAL PRIMARY KEY, user_id INTEGER, monto FLOAT, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id SERIAL PRIMARY KEY, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id SERIAL PRIMARY KEY, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -236,7 +236,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto REAL, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, enlace TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto REAL, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -271,8 +271,7 @@ def init_db():
         ("recargas_bcp", "nombre_remitente", "TEXT"),
         ("retiros", "monto_local", "REAL"),
         ("retiros", "moneda", "TEXT"),
-        ("retiros", "fx_units_per_usd", "REAL"),
-        ("metodos_pago", "enlace", "TEXT")
+        ("retiros", "fx_units_per_usd", "REAL")
     ]
     for table, col, definition in migrations:
         try:
@@ -435,14 +434,6 @@ def sortear():
                 c.execute(q("UPDATE sorteos SET estado='PAGADO' WHERE id=?"),(sid,))
             else:
                 c.execute(q("UPDATE sorteos SET jackpot=?,estado='FINALIZADO' WHERE id=?"),(fondo,sid))
-            # Crear inmediatamente el siguiente sorteo horario para que el contador no quede en 00:00.
-            siguiente = get_proximo_cierre_global()
-            c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
-            ya_abierto = c.fetchone()
-            if not ya_abierto:
-                _, tiempo_cfg = get_config()
-                c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO', ?)"),
-                          (siguiente.isoformat(), tiempo_cfg))
             con.commit()
 
             c.execute(q("SELECT DISTINCT a.usuario_id,u.email,u.pais,u.moneda FROM apuestas a JOIN usuarios u ON u.id=a.usuario_id WHERE a.sorteo_id=?"),(sid,))
@@ -703,30 +694,6 @@ def player():
     saldo_usd=float(u[0] or 0) if u else 0
     return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
 
-@app.route('/api/estado-sala')
-def api_estado_sala():
-    if 'user' not in session:
-        return jsonify({"ok":False,"msg":"No logueado"}),401
-    con=None
-    try:
-        con=db(); c=con.cursor()
-        c.execute(q("SELECT id,fecha_hora_cierre,estado,tiempo_min FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
-        row=c.fetchone()
-        pausado, tiempo_cfg=get_config()
-        if not row:
-            proximo=get_proximo_cierre_global()
-            c.execute(q("INSERT INTO sorteos (fecha_hora_cierre,estado,tiempo_min) VALUES (?,'ABIERTO',?)"),(proximo.isoformat(),tiempo_cfg))
-            con.commit()
-            c.execute(q("SELECT id,fecha_hora_cierre,estado,tiempo_min FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
-            row=c.fetchone()
-        con.close()
-        return jsonify({"ok":True,"sorteo_id":row[0],"cierre":row[1],"estado":row[2],"tiempo_min":row[3] or tiempo_cfg,"pausado":bool(pausado)})
-    except Exception as e:
-        try:
-            if con: con.close()
-        except Exception: pass
-        return jsonify({"ok":False,"msg":"No se pudo consultar el estado de la sala"}),500
-
 @app.route('/api/configuracion-juego')
 def api_configuracion_juego():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
@@ -746,25 +713,14 @@ def api_metodos_pago():
         r=c.fetchone()
         pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'
         c.execute(q("""
-            SELECT id,nombre,tipo,destino,titular,banco,instrucciones,enlace
+            SELECT id,nombre,tipo,destino,titular,banco,instrucciones
             FROM metodos_pago
-            WHERE pais=? AND (
-                activo=1 OR
-                (
-                    LOWER(TRIM(COALESCE(tipo,''))) LIKE '%paypal%' OR
-                    LOWER(TRIM(COALESCE(nombre,''))) LIKE '%paypal%'
-                )
-            ) AND (
-                TRIM(COALESCE(destino,''))<>'' OR
-                TRIM(COALESCE(enlace,''))<>'' OR
-                LOWER(TRIM(COALESCE(tipo,''))) LIKE '%paypal%' OR
-                LOWER(TRIM(COALESCE(nombre,''))) LIKE '%paypal%'
-            )
+            WHERE pais=? AND activo=1 AND TRIM(COALESCE(destino,''))<>''
             ORDER BY id
         """),(pais,))
         rows=c.fetchall(); con.close()
         return jsonify({"ok":True,"pais":pais,"metodos":[
-            {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or "","enlace":x[7] or ""}
+            {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or ""}
             for x in rows
         ]})
     except Exception as e:
@@ -1184,12 +1140,12 @@ def api_admin_metodos_pago():
     try:
         con=db(); c=con.cursor()
         c.execute(q("""
-            SELECT id,pais,nombre,tipo,destino,titular,banco,instrucciones,enlace,activo,actualizado
+            SELECT id,pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado
             FROM metodos_pago ORDER BY pais,id
         """))
         rows=c.fetchall(); con.close()
         return jsonify({"ok":True,"metodos":[
-            {"id":r[0],"pais":r[1],"nombre":r[2],"tipo":r[3],"destino":r[4] or "","titular":r[5] or "","banco":r[6] or "","instrucciones":r[7] or "","enlace":r[8] or "","activo":bool(r[9]),"actualizado":r[10] or ""}
+            {"id":r[0],"pais":r[1],"nombre":r[2],"tipo":r[3],"destino":r[4] or "","titular":r[5] or "","banco":r[6] or "","instrucciones":r[7] or "","activo":bool(r[8]),"actualizado":r[9] or ""}
             for r in rows
         ]})
     except Exception as e:
@@ -1214,7 +1170,6 @@ def api_admin_metodos_pago_guardar():
         titular=str(d.get('titular','')).strip()[:120]
         banco=str(d.get('banco','')).strip()[:100]
         instrucciones=str(d.get('instrucciones','')).strip()[:300]
-        enlace=str(d.get('enlace','')).strip()[:500]
         activo=1 if bool(d.get('activo',True)) else 0
     except Exception:
         return jsonify({"ok":False,"msg":"Datos inválidos"}),400
@@ -1226,13 +1181,13 @@ def api_admin_metodos_pago_guardar():
     try:
         con=db(); c=con.cursor()
         if mid>0:
-            c.execute(q("UPDATE metodos_pago SET pais=?,nombre=?,tipo=?,destino=?,titular=?,banco=?,instrucciones=?,enlace=?,activo=?,actualizado=? WHERE id=?"),
-                      (pais,nombre,tipo,destino,titular,banco,instrucciones,enlace,activo,ahora,mid))
+            c.execute(q("UPDATE metodos_pago SET pais=?,nombre=?,tipo=?,destino=?,titular=?,banco=?,instrucciones=?,activo=?,actualizado=? WHERE id=?"),
+                      (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,ahora,mid))
             if c.rowcount != 1:
                 con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Método no encontrado"}),404
         else:
-            c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,enlace,activo,actualizado) VALUES (?,?,?,?,?,?,?,?,?,?)"),
-                      (pais,nombre,tipo,destino,titular,banco,instrucciones,enlace,activo,ahora))
+            c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado) VALUES (?,?,?,?,?,?,?,?,?)"),
+                      (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,ahora))
             mid=c.lastrowid if not is_postgres() else None
         con.commit(); con.close()
         return jsonify({"ok":True,"msg":"Método de pago guardado","id":mid})
