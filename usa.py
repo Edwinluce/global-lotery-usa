@@ -435,6 +435,14 @@ def sortear():
                 c.execute(q("UPDATE sorteos SET estado='PAGADO' WHERE id=?"),(sid,))
             else:
                 c.execute(q("UPDATE sorteos SET jackpot=?,estado='FINALIZADO' WHERE id=?"),(fondo,sid))
+            # Crear inmediatamente el siguiente sorteo horario para que el contador no quede en 00:00.
+            siguiente = get_proximo_cierre_global()
+            c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+            ya_abierto = c.fetchone()
+            if not ya_abierto:
+                _, tiempo_cfg = get_config()
+                c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO', ?)"),
+                          (siguiente.isoformat(), tiempo_cfg))
             con.commit()
 
             c.execute(q("SELECT DISTINCT a.usuario_id,u.email,u.pais,u.moneda FROM apuestas a JOIN usuarios u ON u.id=a.usuario_id WHERE a.sorteo_id=?"),(sid,))
