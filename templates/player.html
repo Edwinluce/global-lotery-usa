@@ -118,7 +118,7 @@ async function verHistorial(){
 <div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
 <div class="box"><small>PLAYING</small><b id="jugadores">In room</b></div>
 </div>
-<div class="pozo-box"><small>🏆 POZO A REPARTIR</small><b id="pozoActual">$ 0.00</b></div>
+<div id="autoSalaEstado" style="display:none;margin:6px 8px;background:#2b2110;border:1px solid #d4a853;border-radius:10px;padding:8px;text-align:center;color:#ffcc4d;font-size:11px"></div><div class="pozo-box"><small>🏆 POZO A REPARTIR</small><b id="pozoActual">$ 0.00</b></div>
 <div class="historial">
 <div class="historial-head">
 <b style="font-size:11px;color:#d4a853">📜 LAST WINNERS</b>
@@ -284,8 +284,104 @@ async function cargarPozo(){
 }
 cargarPozo();
 setInterval(cargarPozo,5000);
-function getCierreGlobal(){const unaHora=60*60*1000;return new Date(Math.ceil(Date.now()/unaHora)*unaHora)} let cierre=getCierreGlobal();
-setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){mostrarResultado();cierre=getCierreGlobal();apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cargarHistorial()}},1000);
+function getCierreGlobal(){return new Date(Date.now()+170*60*1000)} let cierre=getCierreGlobal();
+setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){actualizarEstadoSalaAutomatico();actualizarResultadoAutomatico()}},1000);
+
+/* ===== ACTUALIZACIÓN AUTOMÁTICA DE LA SALA ===== */
+let ultimoSorteoConocido=Number(periodoId||0);
+let ultimoGanadorMostrado=null;
+let refrescoSalaOcupado=false;
+
+async function cargarSaldoAutomatico(){
+  try{
+    const r=await fetch('/api/saldo',{cache:'no-store',credentials:'same-origin'});
+    if(r.status===401)return false;
+    const d=await r.json();
+    if(!d || d.ok===false)return false;
+    saldoActual=Number(d.saldo||0);
+    document.getElementById('saldo').innerText=money(Number(d.saldo_local ?? usdToLocal(saldoActual)));
+    const sm=document.getElementById('saldoModal'); if(sm)sm.innerText=money(Number(d.saldo_local ?? usdToLocal(saldoActual)));
+    const sr=document.getElementById('saldoModalRetiro'); if(sr)sr.innerText=money(Number(d.saldo_local ?? usdToLocal(saldoActual)));
+    return true;
+  }catch(e){return false}
+}
+
+async function actualizarEstadoSalaAutomatico(){
+  try{
+    const r=await fetch('/api/estado-sala',{cache:'no-store',credentials:'same-origin'});
+    if(!r.ok)return;
+    const d=await r.json();
+    if(!d || !d.ok)return;
+    const nuevoId=Number(d.sorteo_id||0);
+    if(d.cierre){
+      const cs=new Date(d.cierre);
+      if(!Number.isNaN(cs.getTime()))cierre=cs;
+    }
+    const aviso=document.getElementById('autoSalaEstado');
+    if(aviso){
+      aviso.style.display=d.pausado?'block':'none';
+      if(d.pausado)aviso.innerText='⏸️ La sala está temporalmente pausada. Tus datos siguen actualizándose.';
+    }
+    if(nuevoId && nuevoId!==ultimoSorteoConocido){
+      ultimoSorteoConocido=nuevoId;
+      periodoId=String(nuevoId);
+      document.getElementById('periodo').innerText=nuevoId;
+      apuestas={};misApuestasGuardadas={};
+      document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));
+      calc();
+      document.getElementById('modalSala').style.display='none';
+      document.getElementById('modalResultado').style.display='none';
+      await cargarSaldoAutomatico();
+      await cargarPozo();
+      await cargarApuestasEnVivo();
+      await cargarHistorial();
+      await cargarReferidos();
+    }
+  }catch(e){}
+}
+
+async function actualizarResultadoAutomatico(){
+  try{
+    const r=await fetch('/api/ultimo-resultado',{cache:'no-store',credentials:'same-origin'});
+    if(!r.ok)return;
+    const d=await r.json();
+    const ganador=d&&d.ganador!=null?Number(d.ganador):null;
+    if(!ganador)return;
+    const estado=await fetch('/api/estado-sala',{cache:'no-store',credentials:'same-origin'}).then(x=>x.ok?x.json():null).catch(()=>null);
+    if(estado && Number(estado.sorteo_id||0)===Number(periodoId||0))return;
+    const clave=String(periodoId)+'_'+String(ganador);
+    if(ultimoGanadorMostrado===clave)return;
+    ultimoGanadorMostrado=clave;
+    const g=animales.find(x=>x[0]===ganador)||animales[6];
+    document.getElementById('modalSala').style.display='none';
+    document.getElementById('ganadorEmoji').innerText=g[2];
+    document.getElementById('ganadorNombre').innerText=g[1].toUpperCase();
+    document.getElementById('ganadorNum').innerText='N° '+String(g[0]).padStart(2,'0');
+    if(misApuestasGuardadas[g[0]]){
+      document.getElementById('ganasteTexto').innerHTML=`🎉 <b style="color:#22c55e">YOU WON!</b><br>You bet ${money(misApuestasGuardadas[g[0]])} on ${g[1]}<br>Tu premio se calcula según el pozo disponible y se divide entre los ganadores.`;
+    }else{
+      document.getElementById('ganasteTexto').innerHTML=`😢 Not this time<br>Winner <b style="color:#ffcc4d">${g[1]}</b>`;
+    }
+    document.getElementById('modalResultado').style.display='flex';
+    await cargarSaldoAutomatico();
+    await cargarPozo();
+    await cargarHistorial();
+  }catch(e){}
+}
+
+async function actualizarJugadorAutomatico(){
+  if(refrescoSalaOcupado)return;
+  refrescoSalaOcupado=true;
+  try{
+    await cargarSaldoAutomatico();
+    await actualizarEstadoSalaAutomatico();
+    await cargarPozo();
+    await cargarApuestasEnVivo();
+    await cargarReferidos();
+    await cargarMisRetiros();
+  }finally{refrescoSalaOcupado=false}
+}
+
 let REF_CODE='';
 function referralLink(){ return location.origin+'/login?ref='+encodeURIComponent(REF_CODE); }
 let REF_LOADING=false;
@@ -338,7 +434,14 @@ function abrirReferral(){
 }
 function cerrarReferral(){document.getElementById('modalReferral').style.display='none'}
 document.addEventListener('click',e=>{if(e.target===document.getElementById('modalMiQR'))cerrarMiQR();if(e.target===document.getElementById('modalReferral'))cerrarReferral()});
-document.getElementById('btnClaimReferral').onclick=async()=>{const a=Number(document.getElementById('refAnimal1').value),b=Number(document.getElementById('refAnimal2').value);if(!a||!b||a===b)return alert('Elige dos animales diferentes.');const btn=document.getElementById('btnClaimReferral');btn.disabled=true;const r=await fetch('/api/referral/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({animal_ids:[a,b]})});const d=await r.json();alert(d.msg||'Listo');if(d.ok){cerrarReferral();location.reload()}else btn.disabled=false;};
+document.getElementById('btnClaimReferral').onclick=async()=>{const a=Number(document.getElementById('refAnimal1').value),b=Number(document.getElementById('refAnimal2').value);if(!a||!b||a===b)return alert('Elige dos animales diferentes.');const btn=document.getElementById('btnClaimReferral');btn.disabled=true;const r=await fetch('/api/referral/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({animal_ids:[a,b]})});const d=await r.json();alert(d.msg||'Listo');if(d.ok){
+  cerrarReferral();
+  await cargarSaldoAutomatico();
+  await cargarPozo();
+  await cargarApuestasEnVivo();
+  await cargarReferidos();
+  await cargarMisRetiros();
+}else btn.disabled=false;};
 
 let montoRecarga=LEVELS.length?Math.max(DEPOSIT_MIN,LEVELS[0]):DEPOSIT_MIN;
 let metodoPagoSeleccionado=null;
@@ -382,7 +485,7 @@ async function cargarMetodosPago(){
        const enlace=String(m.enlace||'').trim();
        const destino=String(m.destino||'').trim();
        const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
-       if(urlPago && /paypal\.com/i.test(urlPago)) window.location.assign(urlPago);
+       if(urlPago && /paypal\.com/i.test(urlPago)) abrirEnlacePago();
      };
      box.appendChild(b);
      if(i===0) setTimeout(()=>seleccionarMetodoPago(m,b),0);
@@ -413,7 +516,7 @@ function abrirEnlacePago(){
  const destino=String(metodoPagoSeleccionado.destino||'').trim();
  const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
  if(!urlPago)return;
- window.location.assign(urlPago);
+ const w=window.open(urlPago,'_blank','noopener,noreferrer'); if(!w) alert('El navegador bloqueó la ventana de PayPal. Permite ventanas emergentes para realizar el pago.');
 }
 function copiarDestino(){if(metodoPagoSeleccionado?.destino){navigator.clipboard.writeText(metodoPagoSeleccionado.destino);alert('✅ Datos copiados')}}
 
