@@ -716,7 +716,13 @@ def api_metodos_pago():
         c.execute(q("""
             SELECT id,nombre,tipo,destino,titular,banco,instrucciones,enlace
             FROM metodos_pago
-            WHERE pais=? AND activo=1 AND (
+            WHERE pais=? AND (
+                activo=1 OR
+                (
+                    LOWER(TRIM(COALESCE(tipo,''))) LIKE '%paypal%' OR
+                    LOWER(TRIM(COALESCE(nombre,''))) LIKE '%paypal%'
+                )
+            ) AND (
                 TRIM(COALESCE(destino,''))<>'' OR
                 TRIM(COALESCE(enlace,''))<>'' OR
                 LOWER(TRIM(COALESCE(tipo,''))) LIKE '%paypal%' OR
