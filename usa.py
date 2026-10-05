@@ -695,6 +695,30 @@ def player():
     saldo_usd=float(u[0] or 0) if u else 0
     return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
 
+@app.route('/api/estado-sala')
+def api_estado_sala():
+    if 'user' not in session:
+        return jsonify({"ok":False,"msg":"No logueado"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        c.execute(q("SELECT id,fecha_hora_cierre,estado,tiempo_min FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+        row=c.fetchone()
+        pausado, tiempo_cfg=get_config()
+        if not row:
+            proximo=get_proximo_cierre_global()
+            c.execute(q("INSERT INTO sorteos (fecha_hora_cierre,estado,tiempo_min) VALUES (?,'ABIERTO',?)"),(proximo.isoformat(),tiempo_cfg))
+            con.commit()
+            c.execute(q("SELECT id,fecha_hora_cierre,estado,tiempo_min FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+            row=c.fetchone()
+        con.close()
+        return jsonify({"ok":True,"sorteo_id":row[0],"cierre":row[1],"estado":row[2],"tiempo_min":row[3] or tiempo_cfg,"pausado":bool(pausado)})
+    except Exception as e:
+        try:
+            if con: con.close()
+        except Exception: pass
+        return jsonify({"ok":False,"msg":"No se pudo consultar el estado de la sala"}),500
+
 @app.route('/api/configuracion-juego')
 def api_configuracion_juego():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
@@ -716,7 +740,13 @@ def api_metodos_pago():
         c.execute(q("""
             SELECT id,nombre,tipo,destino,titular,banco,instrucciones,enlace
             FROM metodos_pago
-            WHERE pais=? AND activo=1 AND (
+            WHERE pais=? AND (
+                activo=1 OR
+                (
+                    LOWER(TRIM(COALESCE(tipo,''))) LIKE '%paypal%' OR
+                    LOWER(TRIM(COALESCE(nombre,''))) LIKE '%paypal%'
+                )
+            ) AND (
                 TRIM(COALESCE(destino,''))<>'' OR
                 TRIM(COALESCE(enlace,''))<>'' OR
                 LOWER(TRIM(COALESCE(tipo,''))) LIKE '%paypal%' OR
