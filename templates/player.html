@@ -505,9 +505,8 @@ function seleccionarMetodoPago(m,btn){
  const nombrePago=String(m.nombre||'').toLowerCase();
  const enlacePago=String(m.enlace||'').trim();
  const destinoPago=String(m.destino||'').trim();
- const esPaypal=/paypal/i.test(tipoPago+' '+nombrePago);
- const urlPagoPaypal=/^https?:\/\//i.test(enlacePago) ? enlacePago : (/^https?:\/\//i.test(destinoPago) ? destinoPago : '');
- if(esPaypal){
+ const urlPaypal=enlacePago || ((tipoPago.includes('paypal')||nombrePago.includes('paypal')) && /^https?:\/\//i.test(destinoPago) ? destinoPago : '');
+ if(urlPaypal && /paypal\.com/i.test(urlPaypal)){
    html+='<button type="button" class="btn-pagar" style="margin-top:10px;background:linear-gradient(180deg,#1477d4,#0756a8)" onclick="abrirEnlacePago()">💙 PAGAR DIRECTAMENTE CON PAYPAL</button>';
    html+='<div style="text-align:center;color:#9ecbb6;font-size:10px;margin-top:6px">PayPal se abrirá en otra pestaña y esta sala permanecerá abierta.</div>';
  } else if(m.enlace){
@@ -521,9 +520,8 @@ function abrirEnlacePago(){
  const tipo=String(metodoPagoSeleccionado.tipo||'').toLowerCase();
  const nombre=String(metodoPagoSeleccionado.nombre||'').toLowerCase();
  const destino=String(metodoPagoSeleccionado.destino||'').trim();
- const esPaypal=/paypal/i.test(tipo+' '+nombre);
- const urlPago=/^https?:\/\//i.test(enlace) ? enlace : (/^https?:\/\//i.test(destino) ? destino : '');
- if(!urlPago)return alert(esPaypal ? '⚠️ PayPal está configurado, pero el enlace no es válido. Revisa el enlace en Administración.' : '⚠️ No hay un enlace de pago válido configurado.');
+ const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
+ if(!urlPago)return;
  const w=window.open(urlPago,'_blank','noopener,noreferrer'); if(!w) alert('El navegador bloqueó la ventana de PayPal. Permite ventanas emergentes para realizar el pago.');
 }
 function copiarDestino(){if(metodoPagoSeleccionado?.destino){navigator.clipboard.writeText(metodoPagoSeleccionado.destino);alert('✅ Datos copiados')}}
