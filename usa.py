@@ -224,7 +224,7 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto FLOAT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id SERIAL PRIMARY KEY, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, enlace TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id SERIAL PRIMARY KEY, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id SERIAL PRIMARY KEY, user_id INTEGER, monto FLOAT, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id SERIAL PRIMARY KEY, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id SERIAL PRIMARY KEY, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
@@ -236,11 +236,21 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS apuestas (id TEXT PRIMARY KEY, sorteo_id INTEGER, usuario_id INTEGER, animal_id INTEGER, monto REAL, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS config_paises (pais TEXT PRIMARY KEY, tasa_usd REAL NOT NULL, actualizado TEXT)")
-        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, enlace TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS metodos_pago (id INTEGER PRIMARY KEY AUTOINCREMENT, pais TEXT NOT NULL, nombre TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT, titular TEXT, banco TEXT, instrucciones TEXT, activo INTEGER DEFAULT 1, actualizado TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS retiros (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto REAL, banco_info TEXT, estado TEXT, fecha TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS recargas_bcp (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, monto INTEGER, operacion TEXT, estado TEXT, fecha TEXT, voucher TEXT)")
         c.execute("CREATE TABLE IF NOT EXISTS correos_enviados (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, sorteo_id INTEGER, tipo TEXT, fecha TEXT, UNIQUE(user_id, sorteo_id, tipo))")
         c.execute("CREATE TABLE IF NOT EXISTS movimientos (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, tipo TEXT, monto REAL, referencia TEXT, detalle TEXT, fecha TEXT)")
+
+    # ========================= REFERIDOS =========================
+    if is_postgres():
+        c.execute("CREATE TABLE IF NOT EXISTS referral_codes (id SERIAL PRIMARY KEY, user_id INTEGER UNIQUE, code TEXT UNIQUE NOT NULL, created_at TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS referrals (id SERIAL PRIMARY KEY, referrer_id INTEGER NOT NULL, referred_id INTEGER UNIQUE NOT NULL, code TEXT NOT NULL, status TEXT DEFAULT 'registered', registered_at TEXT, qualified_at TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS referral_rewards (id SERIAL PRIMARY KEY, referrer_id INTEGER NOT NULL, free_animals INTEGER DEFAULT 2, claimed INTEGER DEFAULT 0, animal_ids TEXT, created_at TEXT, claimed_at TEXT)")
+    else:
+        c.execute("CREATE TABLE IF NOT EXISTS referral_codes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE, code TEXT UNIQUE NOT NULL, created_at TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS referrals (id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_id INTEGER NOT NULL, referred_id INTEGER UNIQUE NOT NULL, code TEXT NOT NULL, status TEXT DEFAULT 'registered', registered_at TEXT, qualified_at TEXT)")
+        c.execute("CREATE TABLE IF NOT EXISTS referral_rewards (id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_id INTEGER NOT NULL, free_animals INTEGER DEFAULT 2, claimed INTEGER DEFAULT 0, animal_ids TEXT, created_at TEXT, claimed_at TEXT)")
 
     # Migraciones para instalaciones existentes.
     migrations = [
@@ -262,7 +272,6 @@ def init_db():
         ("retiros", "monto_local", "REAL"),
         ("retiros", "moneda", "TEXT"),
         ("retiros", "fx_units_per_usd", "REAL")
-        ,("metodos_pago", "enlace", "TEXT")
     ]
     for table, col, definition in migrations:
         try:
@@ -480,6 +489,47 @@ scheduler.start()
 @app.route('/login')
 def login_page(): return render_template('login.html')
 
+def get_or_create_referral_code(c, user_id):
+    c.execute(q("SELECT code FROM referral_codes WHERE user_id=?"), (user_id,))
+    row=c.fetchone()
+    if row and row[0]: return str(row[0])
+    for _ in range(10):
+        code='GLB-'+secrets.token_hex(4).upper()
+        try:
+            if is_postgres():
+                c.execute(q("INSERT INTO referral_codes (user_id,code,created_at) VALUES (?,?,?) ON CONFLICT (user_id) DO NOTHING"), (user_id,code,datetime.now().isoformat()))
+            else:
+                c.execute(q("INSERT OR IGNORE INTO referral_codes (user_id,code,created_at) VALUES (?,?,?)"), (user_id,code,datetime.now().isoformat()))
+            c.execute(q("SELECT code FROM referral_codes WHERE user_id=?"), (user_id,))
+            row=c.fetchone()
+            if row and row[0]: return str(row[0])
+        except Exception:
+            continue
+    raise RuntimeError('No se pudo generar el código de referido')
+
+def sincronizar_recompensas_referidos(c, referrer_id):
+    c.execute(q("SELECT COUNT(*) FROM referrals WHERE referrer_id=? AND status='qualified'"), (referrer_id,))
+    qualified=int(c.fetchone()[0] or 0)
+    c.execute(q("SELECT COUNT(*) FROM referral_rewards WHERE referrer_id=?"), (referrer_id,))
+    creadas=int(c.fetchone()[0] or 0)
+    objetivo=qualified//2
+    faltan=max(0,objetivo-creadas)
+    for _ in range(faltan):
+        c.execute(q("INSERT INTO referral_rewards (referrer_id,free_animals,claimed,animal_ids,created_at) VALUES (?,?,?,?,?)"),
+                  (referrer_id,2,0,'',datetime.now().isoformat()))
+    return qualified
+
+def calificar_referido_por_recarga(c, referred_id):
+    c.execute(q("SELECT referrer_id,status FROM referrals WHERE referred_id=? LIMIT 1"), (referred_id,))
+    row=c.fetchone()
+    if not row or row[1]=='qualified': return False
+    c.execute(q("UPDATE referrals SET status='qualified',qualified_at=? WHERE referred_id=? AND status<>'qualified'"),
+              (datetime.now().isoformat(),referred_id))
+    if c.rowcount:
+        sincronizar_recompensas_referidos(c,int(row[0]))
+        return True
+    return False
+
 @app.route('/api/register', methods=['POST'])
 def api_register():
     try:
@@ -487,6 +537,7 @@ def api_register():
         email=str(d.get('email','')).strip().lower()
         password=str(d.get('password',''))
         pais=str(d.get('pais','USA')).strip()
+        ref_code=str(d.get('ref_code',d.get('ref',d.get('codigo_referido','')))).strip().upper()
         if pais not in PAISES_ACTIVOS:
             return jsonify({"ok":False,"msg":"Por ahora solo están habilitados Perú, Chile y Estados Unidos."}),400
         cfg=get_country_config(pais)
@@ -504,12 +555,106 @@ def api_register():
             c.execute(q("INSERT INTO usuarios (email,password,telefono,saldo,fecha_registro,pais,moneda,terminos_aceptados,terminos_version,terminos_fecha) VALUES (?,?,?,?,?,?,?,?,?,?)"),
                       (email,pw,tel,0,ahora,pais,cfg['currency'],1,'1.0',ahora))
             uid=c.lastrowid
+        # Cada usuario recibe su propio código. Si llegó por invitación, se registra el vínculo.
+        get_or_create_referral_code(c, uid)
+        if ref_code:
+            c.execute(q("SELECT user_id FROM referral_codes WHERE UPPER(code)=? LIMIT 1"),(ref_code,))
+            rr=c.fetchone()
+            if rr and int(rr[0]) != int(uid):
+                c.execute(q("SELECT id FROM referrals WHERE referred_id=? LIMIT 1"),(uid,))
+                if not c.fetchone():
+                    c.execute(q("INSERT INTO referrals (referrer_id,referred_id,code,status,registered_at) VALUES (?,?,?,?,?)"),
+                              (int(rr[0]),uid,ref_code,'registered',datetime.now().isoformat()))
         con.commit(); con.close()
         session['user']=uid; session['email']=email
         return jsonify({"ok":True,"pais":pais,"moneda":cfg['currency']})
     except Exception as e:
         print("ERROR REGISTER:", e)
         return jsonify({"ok":False,"msg": "Correo ya registrado" if "UNIQUE" in str(e) or "duplicate" in str(e).lower() else "Error: "+str(e)})
+
+@app.route('/api/referral')
+def api_referral():
+    if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor(); uid=int(session['user'])
+        code=get_or_create_referral_code(c,uid)
+        qualified=sincronizar_recompensas_referidos(c,uid)
+        c.execute(q("SELECT COUNT(*) FROM referrals WHERE referrer_id=?"),(uid,)); registered=int(c.fetchone()[0] or 0)
+        c.execute(q("SELECT COUNT(*) FROM referral_rewards WHERE referrer_id=? AND claimed=0"),(uid,)); pending=int(c.fetchone()[0] or 0)
+        con.commit(); con.close()
+        return jsonify({"ok":True,"code":code,"registered":registered,"qualified":qualified,"pending_rewards":pending})
+    except Exception as e:
+        if con:
+            try: con.rollback(); con.close()
+            except Exception: pass
+        print("ERROR REFERIDO:",e)
+        return jsonify({"ok":False,"msg":"No se pudo cargar el código de referido"}),500
+
+@app.route('/api/referral/claim', methods=['POST'])
+def api_referral_claim():
+    if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
+    con=None
+    try:
+        d=request.get_json() or {}; ids=d.get('animal_ids',[])
+        if not isinstance(ids,list) or len(ids)!=2: return jsonify({"ok":False,"msg":"Debes elegir exactamente 2 animales."}),400
+        try: a,b=int(ids[0]),int(ids[1])
+        except Exception: return jsonify({"ok":False,"msg":"Animales inválidos."}),400
+        if a==b or a<1 or a>25 or b<1 or b>25: return jsonify({"ok":False,"msg":"Elige dos animales diferentes."}),400
+        con=db(); c=con.cursor(); uid=int(session['user'])
+        c.execute(q("SELECT id,free_animals FROM referral_rewards WHERE referrer_id=? AND claimed=0 ORDER BY id LIMIT 1"),(uid,)); reward=c.fetchone()
+        if not reward:
+            con.close(); return jsonify({"ok":False,"msg":"No tienes un bono de 2 animales disponible todavía."}),400
+        c.execute(q("SELECT id FROM animales WHERE id IN (?,?) ORDER BY id"),(a,b)); valid=c.fetchall()
+        if len(valid)!=2: con.close(); return jsonify({"ok":False,"msg":"Uno de los animales no existe."}),400
+        c.execute(q("SELECT id,fecha_hora_cierre FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); draw=c.fetchone()
+        if not draw: con.close(); return jsonify({"ok":False,"msg":"No hay un sorteo abierto."}),400
+        sid,cierre=draw
+        try:
+            if cierre and datetime.fromisoformat(str(cierre)) <= datetime.now():
+                con.close(); return jsonify({"ok":False,"msg":"El sorteo actual ya cerró. Intenta con el próximo."}),400
+        except Exception: pass
+        c.execute(q("SELECT animal_id FROM apuestas WHERE sorteo_id=? AND usuario_id=? AND monto=0"),(sid,uid)); usados={int(x[0]) for x in c.fetchall()}
+        if a in usados or b in usados:
+            con.close(); return jsonify({"ok":False,"msg":"Ya tienes un animal gratis registrado en este sorteo."}),400
+        now=datetime.now().isoformat(); pais='USA'; cfg=get_country_config(pais)
+        c.execute(q("SELECT pais FROM usuarios WHERE id=?"),(uid,)); ur=c.fetchone()
+        if ur and ur[0] in COUNTRY_CONFIG: pais=ur[0]; cfg=get_country_config(pais)
+        for aid in (a,b):
+            c.execute(q("INSERT INTO apuestas (id,sorteo_id,usuario_id,animal_id,monto,fecha,monto_local,moneda,fx_units_per_usd) VALUES (?,?,?,?,?,?,?,?,?)"),
+                      (str(uuid.uuid4()),sid,uid,aid,0.0,now,0.0,cfg['currency'],cfg['units_per_usd']))
+        c.execute(q("UPDATE referral_rewards SET claimed=1,animal_ids=?,claimed_at=? WHERE id=? AND claimed=0"),(f'{a},{b}',now,reward[0]))
+        if c.rowcount!=1:
+            con.rollback(); con.close(); return jsonify({"ok":False,"msg":"El bono ya fue reclamado."}),409
+        registrar_movimiento(c,uid,'BONO_REFERIDO',0.0,f'referido:{reward[0]}',f'2 animales gratis en sorteo:{sid}')
+        con.commit(); con.close()
+        return jsonify({"ok":True,"msg":"🎉 Tus 2 animales gratis fueron activados para el sorteo actual."})
+    except Exception as e:
+        if con:
+            try: con.rollback(); con.close()
+            except Exception: pass
+        print("ERROR RECLAMANDO REFERIDO:",e)
+        return jsonify({"ok":False,"msg":"No se pudo activar el bono."}),500
+
+@app.route('/api/admin/referidos')
+def api_admin_referidos():
+    if not session.get('admin'): return jsonify({"ok":False,"msg":"No admin"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        c.execute(q("""SELECT u.id,u.email,rc.code,
+                              (SELECT COUNT(*) FROM referrals r WHERE r.referrer_id=u.id) registered,
+                              (SELECT COUNT(*) FROM referrals r WHERE r.referrer_id=u.id AND r.status='qualified') qualified,
+                              (SELECT COUNT(*) FROM referral_rewards rr WHERE rr.referrer_id=u.id AND rr.claimed=0) pending_rewards
+                       FROM usuarios u LEFT JOIN referral_codes rc ON rc.user_id=u.id
+                       WHERE rc.code IS NOT NULL ORDER BY u.id DESC"""))
+        rows=c.fetchall(); con.close()
+        return jsonify({"ok":True,"referidos":[{"user_id":r[0],"email":r[1],"code":r[2],"registered":int(r[3] or 0),"qualified":int(r[4] or 0),"pending_rewards":int(r[5] or 0)} for r in rows]})
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        return jsonify({"ok":False,"msg":"No se pudo cargar el panel de referidos"}),500
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
@@ -568,14 +713,14 @@ def api_metodos_pago():
         r=c.fetchone()
         pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'
         c.execute(q("""
-            SELECT id,nombre,tipo,destino,titular,banco,instrucciones,enlace
+            SELECT id,nombre,tipo,destino,titular,banco,instrucciones
             FROM metodos_pago
-            WHERE pais=? AND activo=1 AND (TRIM(COALESCE(destino,''))<>'' OR TRIM(COALESCE(enlace,''))<>'')
+            WHERE pais=? AND activo=1 AND TRIM(COALESCE(destino,''))<>''
             ORDER BY id
         """),(pais,))
         rows=c.fetchall(); con.close()
         return jsonify({"ok":True,"pais":pais,"metodos":[
-            {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or "","enlace":x[7] or ""}
+            {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or ""}
             for x in rows
         ]})
     except Exception as e:
@@ -929,6 +1074,8 @@ def aprobar_recarga():
         c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"),(row[1],row[0]))
         registrar_movimiento(c, row[0], 'RECARGA', row[1], f'recarga:{rid}', 'Recarga aprobada por administrador')
         c.execute(q("UPDATE recargas_bcp SET estado='aprobado' WHERE id=?"),(rid,))
+        # La primera recarga aprobada califica al referido para el programa.
+        calificar_referido_por_recarga(c, int(row[0]))
         pais_recarga = row[4] if row[4] in COUNTRY_CONFIG else 'USA'
         cfg_recarga = get_country_config(pais_recarga)
         recarga_local = format_local(float(row[5] or usd_to_local(float(row[1]), cfg_recarga)), cfg_recarga)
@@ -993,12 +1140,12 @@ def api_admin_metodos_pago():
     try:
         con=db(); c=con.cursor()
         c.execute(q("""
-            SELECT id,pais,nombre,tipo,destino,titular,banco,instrucciones,enlace,activo,actualizado
+            SELECT id,pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado
             FROM metodos_pago ORDER BY pais,id
         """))
         rows=c.fetchall(); con.close()
         return jsonify({"ok":True,"metodos":[
-            {"id":r[0],"pais":r[1],"nombre":r[2],"tipo":r[3],"destino":r[4] or "","titular":r[5] or "","banco":r[6] or "","instrucciones":r[7] or "","enlace":r[8] or "","activo":bool(r[9]),"actualizado":r[10] or ""}
+            {"id":r[0],"pais":r[1],"nombre":r[2],"tipo":r[3],"destino":r[4] or "","titular":r[5] or "","banco":r[6] or "","instrucciones":r[7] or "","activo":bool(r[8]),"actualizado":r[9] or ""}
             for r in rows
         ]})
     except Exception as e:
@@ -1023,7 +1170,6 @@ def api_admin_metodos_pago_guardar():
         titular=str(d.get('titular','')).strip()[:120]
         banco=str(d.get('banco','')).strip()[:100]
         instrucciones=str(d.get('instrucciones','')).strip()[:300]
-        enlace=str(d.get('enlace','')).strip()[:500]
         activo=1 if bool(d.get('activo',True)) else 0
     except Exception:
         return jsonify({"ok":False,"msg":"Datos inválidos"}),400
@@ -1035,13 +1181,13 @@ def api_admin_metodos_pago_guardar():
     try:
         con=db(); c=con.cursor()
         if mid>0:
-            c.execute(q("UPDATE metodos_pago SET pais=?,nombre=?,tipo=?,destino=?,titular=?,banco=?,instrucciones=?,enlace=?,activo=?,actualizado=? WHERE id=?"),
-                      (pais,nombre,tipo,destino,titular,banco,instrucciones,enlace,activo,ahora,mid))
+            c.execute(q("UPDATE metodos_pago SET pais=?,nombre=?,tipo=?,destino=?,titular=?,banco=?,instrucciones=?,activo=?,actualizado=? WHERE id=?"),
+                      (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,ahora,mid))
             if c.rowcount != 1:
                 con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Método no encontrado"}),404
         else:
-            c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,enlace,activo,actualizado) VALUES (?,?,?,?,?,?,?,?,?,?)"),
-                      (pais,nombre,tipo,destino,titular,banco,instrucciones,enlace,activo,ahora))
+            c.execute(q("INSERT INTO metodos_pago (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,actualizado) VALUES (?,?,?,?,?,?,?,?,?)"),
+                      (pais,nombre,tipo,destino,titular,banco,instrucciones,activo,ahora))
             mid=c.lastrowid if not is_postgres() else None
         con.commit(); con.close()
         return jsonify({"ok":True,"msg":"Método de pago guardado","id":mid})

@@ -382,8 +382,9 @@ async function cargarMetodosPago(){
        const enlace=String(m.enlace||'').trim();
        const destino=String(m.destino||'').trim();
        const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
-       if(urlPago && /paypal\.com/i.test(urlPago)) window.location.href=urlPago;
-     }; box.appendChild(b);
+       if(urlPago && /paypal\.com/i.test(urlPago)) window.location.assign(urlPago);
+     };
+     box.appendChild(b);
      if(i===0) setTimeout(()=>seleccionarMetodoPago(m,b),0);
    });
  }catch(e){box.innerHTML='<div style="color:#ff4757">No se pudieron cargar los métodos de pago.</div>';}
@@ -392,73 +393,29 @@ function seleccionarMetodoPago(m,btn){
  metodoPagoSeleccionado=m;
  document.querySelectorAll('#paymentMethods button').forEach(x=>{x.style.background='linear-gradient(180deg,#1f6b43,#12452c)';x.style.color='#fff'});
  btn.style.background='linear-gradient(180deg,#d4a853,#9c7420)';btn.style.color='#000';
-
  let html='<b style="color:#ffcc4d">'+escHtml(m.nombre)+'</b><br>';
  if(m.destino) html+='<b>Destino:</b> '+escHtml(m.destino)+'<br>';
  if(m.titular) html+='<b>Titular:</b> '+escHtml(m.titular)+'<br>';
  if(m.banco) html+='<b>Banco:</b> '+escHtml(m.banco)+'<br>';
  if(m.instrucciones) html+='<span style="color:#aaa">'+escHtml(m.instrucciones)+'</span><br>';
-
- const tipo=String(m.tipo||'').toLowerCase();
- const nombre=String(m.nombre||'').toLowerCase();
- const esPayPal=tipo.includes('paypal') || nombre.includes('paypal');
- const enlace=String(m.enlace||'').trim();
-
- if(esPayPal){
-   html+='<div style="margin-top:10px;color:#ffcc4d;font-weight:900">💳 PAGO SEGURO CON PAYPAL</div>';
-   if(enlace){
-     html+='<button type="button" class="btn-pagar" style="margin-top:10px" onclick="abrirEnlacePago()">💳 CONTINUAR A PAYPAL</button>';
-     html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarEnlacePago()">📋 COPIAR ENLACE DE PAYPAL</button>';
-   }else{
-     html+='<div style="color:#ff4757;margin-top:8px;font-weight:800">⚠️ El enlace de PayPal todavía no está configurado.</div>';
-   }
- }else if(enlace){
-   html+='<button type="button" class="btn-pagar" style="margin-top:10px" onclick="abrirEnlacePago()">💳 ABRIR PAGO</button>';
-   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarEnlacePago()">📋 COPIAR ENLACE</button>';
- }else if(m.destino){
-   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 COPIAR DATOS DE PAGO</button>';
+ if(m.enlace){
+   html+='<button type="button" class="btn-pagar" style="margin-top:10px" onclick="abrirEnlacePago()">'+escHtml(m.texto_boton || ('💳 PAGAR CON '+m.nombre.toUpperCase()))+'</button>';
+ } else if(m.destino){
+   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 Copiar datos de pago</button>';
  }
-
  document.getElementById('paymentInfo').innerHTML=html;
 }
-
 function abrirEnlacePago(){
- if(!metodoPagoSeleccionado)return alert('⚠️ Selecciona PayPal primero.');
- const enlace=String(metodoPagoSeleccionado.enlace||'').trim();
- const tipo=String(metodoPagoSeleccionado.tipo||'').toLowerCase();
- const nombre=String(metodoPagoSeleccionado.nombre||'').toLowerCase();
- const destino=String(metodoPagoSeleccionado.destino||'').trim();
- const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
- if(!urlPago)return alert('⚠️ Falta configurar el enlace de PayPal en el panel admin.');
- if(!/^https?:\/\//i.test(urlPago))return alert('⚠️ El enlace de PayPal no es válido.');
- window.location.href=urlPago;
-}
-
-function copiarEnlacePago(){
  if(!metodoPagoSeleccionado)return;
  const enlace=String(metodoPagoSeleccionado.enlace||'').trim();
  const tipo=String(metodoPagoSeleccionado.tipo||'').toLowerCase();
  const nombre=String(metodoPagoSeleccionado.nombre||'').toLowerCase();
  const destino=String(metodoPagoSeleccionado.destino||'').trim();
  const urlPago=enlace || ((tipo.includes('paypal')||nombre.includes('paypal')) && /^https?:\/\//i.test(destino) ? destino : '');
- if(!urlPago)return alert('⚠️ No hay un enlace de PayPal configurado.');
- if(navigator.clipboard && window.isSecureContext){
-   navigator.clipboard.writeText(urlPago).then(()=>alert('✅ Enlace de PayPal copiado')).catch(()=>prompt('Copia este enlace:',urlPago));
- }else{
-   prompt('Copia este enlace de PayPal:',urlPago);
- }
+ if(!urlPago)return;
+ window.location.assign(urlPago);
 }
-
-function copiarDestino(){
- if(metodoPagoSeleccionado?.destino){
-   const dato=metodoPagoSeleccionado.destino;
-   if(navigator.clipboard && window.isSecureContext){
-     navigator.clipboard.writeText(dato).then(()=>alert('✅ Datos copiados')).catch(()=>prompt('Copia estos datos:',dato));
-   }else{
-     prompt('Copia estos datos:',dato);
-   }
- }
-}
+function copiarDestino(){if(metodoPagoSeleccionado?.destino){navigator.clipboard.writeText(metodoPagoSeleccionado.destino);alert('✅ Datos copiados')}}
 
 document.getElementById('btnPagar').onclick=()=>{
  if(montoRecarga<DEPOSIT_MIN)return alert('La recarga mínima es '+money(DEPOSIT_MIN));
