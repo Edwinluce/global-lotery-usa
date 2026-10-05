@@ -197,11 +197,13 @@ async function verHistorial(){
 <div class="label-rec" style="margin-top:8px">MÉTODO DE PAGO</div>
 <div id="paymentMethods" style="display:grid;gap:8px"></div>
 <div id="paymentInfo" style="background:#111;border-radius:10px;padding:10px;font-size:12px;line-height:1.7;text-align:left;margin-top:8px">Cargando métodos de pago...</div>
+{% if pais == 'USA' %}
 <div id="paypalHostedBox" style="margin-top:12px;background:#0d1b2a;border:1px solid #1477d4;border-radius:12px;padding:12px;text-align:center">
   <div style="font-size:12px;font-weight:900;color:#8ecbff;margin-bottom:8px">💙 PAGO SEGURO CON PAYPAL</div>
   <div id="paypal-container-K69R35CQ7NLAE"></div>
   <div style="font-size:9px;color:#9aa9b8;margin-top:7px">El botón de PayPal utiliza la configuración del botón alojado en PayPal.</div>
 </div>
+{% endif %}
 </div>
 <div class="label-rec">📤 COMPROBANTE</div>
 <input type="file" id="voucherFile" accept="image/jpeg,image/png,image/webp" class="input-card">
@@ -229,6 +231,7 @@ async function verHistorial(){
 </div>
 </div>
 
+{% if pais == 'USA' %}
 <script src="https://www.paypal.com/sdk/js?client-id=BAAtHZb71SG7w_8An6Yn5_Ifeo6kb--wEm0XPk9ZPAHfi92Js7IMx8I3i-Qalp35hRECBGfFMZKBZhNzok&components=hosted-buttons&disable-funding=venmo&currency=USD"></script>
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
@@ -242,6 +245,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
 });
 </script>
+{% endif %}
 <script>
 let GAME_CONFIG = {{ currency_config|tojson }};
 GAME_CONFIG.pais = {{ pais|tojson }};
@@ -303,7 +307,12 @@ async function cargarPozo(){
 cargarPozo();
 setInterval(cargarPozo,5000);
 let cierre=new Date("{{ sorteo[1] if sorteo and sorteo[1] else '' }}");
-if(Number.isNaN(cierre.getTime())){const ahora=new Date();cierre=new Date(ahora);cierre.setMinutes(0,0,0);cierre.setHours(cierre.getHours()+1);}
+if(Number.isNaN(cierre.getTime())){
+  const ahora=new Date();
+  cierre=new Date(ahora);
+  cierre.setMinutes(0,0,0);
+  cierre.setHours(cierre.getHours()+1);
+}
 let cierreProcesado=false;
 setInterval(()=>{
   const diff=Math.max(0,Math.floor((cierre-new Date())/1000));
@@ -531,15 +540,7 @@ function seleccionarMetodoPago(m,btn){
  if(m.titular) html+='<b>Titular:</b> '+escHtml(m.titular)+'<br>';
  if(m.banco) html+='<b>Banco:</b> '+escHtml(m.banco)+'<br>';
  if(m.instrucciones) html+='<span style="color:#aaa">'+escHtml(m.instrucciones)+'</span><br>';
- const tipoPago=String(m.tipo||'').toLowerCase();
- const nombrePago=String(m.nombre||'').toLowerCase();
- const enlacePago=String(m.enlace||'').trim();
- const destinoPago=String(m.destino||'').trim();
- const urlPaypal=(/paypal/i.test(tipoPago+' '+nombrePago) && /^https?:\/\//i.test(enlacePago)) ? enlacePago : ((/paypal/i.test(tipoPago+' '+nombrePago) && /^https?:\/\//i.test(destinoPago)) ? destinoPago : (enlacePago && /^https?:\/\//i.test(enlacePago) ? enlacePago : ''));
- if(urlPaypal && /paypal\.com/i.test(urlPaypal)){
-   html+='<button type="button" class="btn-pagar" style="margin-top:10px;background:linear-gradient(180deg,#1477d4,#0756a8)" onclick="abrirEnlacePago()">💙 PAGAR DIRECTAMENTE CON PAYPAL</button>';
-   html+='<div style="text-align:center;color:#9ecbb6;font-size:10px;margin-top:6px">PayPal se abrirá en otra pestaña y esta sala permanecerá abierta.</div>';
- } else if(m.enlace){
+ if(m.enlace && !/paypal/i.test(String(m.tipo||'')+' '+String(m.nombre||''))){
    html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 Copiar datos de pago</button>';
  }
  document.getElementById('paymentInfo').innerHTML=html;

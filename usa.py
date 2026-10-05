@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session, redirect
 import sqlite3, hashlib, random, secrets, uuid, os, urllib.request, urllib.error, json
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -210,10 +211,15 @@ def registrar_correo_sorteo(user_id, sorteo_id, tipo):
         return False
 
 
+APP_TZ = ZoneInfo("America/Santiago")
+
+def ahora_app():
+    """Hora oficial de la sala: Chile continental."""
+    return datetime.now(APP_TZ).replace(tzinfo=None)
+
 def get_proximo_cierre_global():
-    ahora = datetime.now()
-    proximo = ahora.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    return proximo
+    ahora = ahora_app()
+    return ahora.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
 
 def init_db():
     con = db(); c = con.cursor()
@@ -401,7 +407,7 @@ def sortear():
     con=db(); c=con.cursor()
     try:
         c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' AND fecha_hora_cierre <=? ORDER BY id ASC LIMIT 1"),
-                  (datetime.now().isoformat(),))
+                  (ahora_app().isoformat(),))
         row=c.fetchone()
         if not row: con.close(); return
         sid=row[0]
@@ -612,7 +618,7 @@ def api_referral_claim():
         if not draw: con.close(); return jsonify({"ok":False,"msg":"No hay un sorteo abierto."}),400
         sid,cierre=draw
         try:
-            if cierre and datetime.fromisoformat(str(cierre)) <= datetime.now():
+            if cierre and datetime.fromisoformat(str(cierre)) <= ahora_app():
                 con.close(); return jsonify({"ok":False,"msg":"El sorteo actual ya cerró. Intenta con el próximo."}),400
         except Exception: pass
         c.execute(q("SELECT animal_id FROM apuestas WHERE sorteo_id=? AND usuario_id=? AND monto=0"),(sid,uid)); usados={int(x[0]) for x in c.fetchall()}
@@ -678,50 +684,6 @@ def api_login():
 @app.route('/logout')
 def logout(): session.clear(); return redirect('/login')
 
-@app.route('/api/estado-sala')
-def api_estado_sala():
-    if 'user' not in session:
-        return jsonify({"ok":False,"msg":"No logueado"}),401
-    con=None
-    try:
-        pausado, tiempo_cfg = get_config()
-        # Si el sorteo abierto ya venció, se procesa inmediatamente.
-        con=db(); c=con.cursor()
-        c.execute(q("SELECT id,fecha_hora_cierre,estado,tiempo_min FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
-        row=c.fetchone()
-        con.close(); con=None
-
-        if row and row[1] and str(row[1]) <= datetime.now().isoformat() and not pausado:
-            sortear()
-
-        con=db(); c=con.cursor()
-        c.execute(q("SELECT id,fecha_hora_cierre,estado,tiempo_min FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
-        row=c.fetchone()
-
-        if not row:
-            proximo=get_proximo_cierre_global()
-            c.execute(q("INSERT INTO sorteos (fecha_hora_cierre,estado,tiempo_min) VALUES (?,'ABIERTO',?)"),
-                      (proximo.isoformat(), tiempo_cfg))
-            con.commit()
-            c.execute(q("SELECT id,fecha_hora_cierre,estado,tiempo_min FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
-            row=c.fetchone()
-
-        con.close(); con=None
-        return jsonify({
-            "ok":True,
-            "sorteo_id":row[0],
-            "cierre":row[1],
-            "estado":row[2],
-            "tiempo_min":row[3] or tiempo_cfg,
-            "pausado":bool(pausado)
-        })
-    except Exception as e:
-        if con:
-            try: con.close()
-            except Exception: pass
-        print("ERROR ESTADO SALA:",e)
-        return jsonify({"ok":False,"msg":"No se pudo consultar el estado de la sala"}),500
-
 @app.route('/')
 def player():
     if 'user' not in session: return redirect('/login')
@@ -731,6 +693,18 @@ def player():
         proximo = get_proximo_cierre_global()
         c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado) VALUES (?, 'ABIERTO')"),(proximo.isoformat(),)); con.commit()
         c.execute(q("SELECT * FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); s=c.fetchone()
+    else:
+        # Si una versión anterior dejó un cierre adelantado (por ejemplo 155 min),
+        # corrígelo al próximo cambio de hora oficial de la sala.
+        try:
+            cierre_actual = datetime.fromisoformat(str(s[1])) if s[1] else None
+            cierre_esperado = get_proximo_cierre_global()
+            if cierre_actual is None or abs((cierre_actual - cierre_esperado).total_seconds()) > 90:
+                c.execute(q("UPDATE sorteos SET fecha_hora_cierre=? WHERE id=? AND estado='ABIERTO'"),(cierre_esperado.isoformat(),s[0]))
+                con.commit()
+                c.execute(q("SELECT * FROM sorteos WHERE id=?"),(s[0],)); s=c.fetchone()
+        except Exception:
+            pass
     c.execute(q("SELECT saldo,email,pais,moneda FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
     c.execute(q("SELECT * FROM animales")); anims=c.fetchall()
     c.execute(q("SELECT fecha_hora_cierre, animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') ORDER BY id DESC LIMIT 24")); historial=c.fetchall()
@@ -760,14 +734,22 @@ def api_metodos_pago():
         c.execute(q("""
             SELECT id,nombre,tipo,destino,titular,banco,instrucciones,enlace
             FROM metodos_pago
-            WHERE pais=? AND activo=1 AND (
+            WHERE pais=? AND activo=1
+              AND (
                 TRIM(COALESCE(destino,''))<>'' OR
-                TRIM(COALESCE(enlace,''))<>'' OR
-                LOWER(TRIM(COALESCE(tipo,''))) LIKE '%paypal%' OR
-                LOWER(TRIM(COALESCE(nombre,''))) LIKE '%paypal%'
-            )
+                TRIM(COALESCE(titular,''))<>'' OR
+                TRIM(COALESCE(banco,''))<>'' OR
+                TRIM(COALESCE(instrucciones,''))<>'' OR
+                TRIM(COALESCE(enlace,''))<>''
+              )
+              AND (
+                ?='USA' OR (
+                  LOWER(TRIM(COALESCE(tipo,''))) NOT LIKE '%paypal%' AND
+                  LOWER(TRIM(COALESCE(nombre,''))) NOT LIKE '%paypal%'
+                )
+              )
             ORDER BY id
-        """),(pais,))
+        """),(pais,pais))
         rows=c.fetchall(); con.close()
         return jsonify({"ok":True,"pais":pais,"metodos":[
             {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or "","enlace":x[7] or ""}
@@ -807,7 +789,7 @@ def apostar_multiple():
         if not row: con.close(); return jsonify({"ok":False,"msg":"No hay un sorteo abierto"}),400
         sid,cierre=row
         try:
-            if cierre and datetime.fromisoformat(str(cierre)) <= datetime.now(): con.close(); return jsonify({"ok":False,"msg":"El sorteo ya cerró"}),400
+            if cierre and datetime.fromisoformat(str(cierre)) <= ahora_app(): con.close(); return jsonify({"ok":False,"msg":"El sorteo ya cerró"}),400
         except Exception: pass
         c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=? AND saldo>=?"),(total_usd,session['user'],total_usd))
         if c.rowcount != 1:
@@ -1042,6 +1024,24 @@ def api_historial_sorteos():
     c.execute(q("SELECT id,fecha_hora_cierre,animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') AND animal_ganador IS NOT NULL ORDER BY id DESC LIMIT 30"))
     rows=c.fetchall(); con.close()
     return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "","animal_ganador":r[2]} for r in rows])
+
+@app.route('/api/estado-sala')
+def api_estado_sala():
+    if 'user' not in session:
+        return jsonify({"ok":False,"msg":"No logueado"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        c.execute(q("SELECT id,fecha_hora_cierre,estado FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+        row=c.fetchone(); con.close()
+        if not row:
+            return jsonify({"ok":False,"msg":"No hay sorteo abierto"}),404
+        return jsonify({"ok":True,"sorteo_id":int(row[0]),"cierre":str(row[1] or ''),"estado":row[2],"pausado":bool(get_config()[0])})
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        return jsonify({"ok":False,"msg":"No se pudo consultar el estado de la sala"}),500
 
 @app.route('/api/ultimo-resultado')
 def api_ultimo_resultado():
