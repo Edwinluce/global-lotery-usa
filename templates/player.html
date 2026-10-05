@@ -284,7 +284,7 @@ async function cargarPozo(){
 }
 cargarPozo();
 setInterval(cargarPozo,5000);
-function getCierreGlobal(){return new Date(Date.now()*60*1000)} let cierre=getCierreGlobal();
+function getCierreGlobal(){return new Date(Date.now()+60*60*1000)} let cierre=getCierreGlobal();
 setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){actualizarEstadoSalaAutomatico();actualizarResultadoAutomatico()}},1000);
 
 /* ===== ACTUALIZACIÓN AUTOMÁTICA DE LA SALA ===== */
