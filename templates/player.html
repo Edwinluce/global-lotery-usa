@@ -197,7 +197,12 @@ async function verHistorial(){
 <div class="label-rec" style="margin-top:8px">MÉTODO DE PAGO</div>
 <div id="paymentMethods" style="display:grid;gap:8px"></div>
 <div id="paymentInfo" style="background:#111;border-radius:10px;padding:10px;font-size:12px;line-height:1.7;text-align:left;margin-top:8px">Cargando métodos de pago...</div>
-</div>
+</div> <div id="paypal-container-K69R35CQ7NLAE"></div>
+<script>
+  paypal.HostedButtons({
+    hostedButtonId: "K69R35CQ7NLAE",
+  }).render("#paypal-container-K69R35CQ7NLAE")
+</script>
 <div class="label-rec">📤 COMPROBANTE</div>
 <input type="file" id="voucherFile" accept="image/jpeg,image/png,image/webp" class="input-card">
 <input id="operacion" class="input-card" placeholder="Número de operación / referencia *">
