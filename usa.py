@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify, session, redirect
 import sqlite3, hashlib, random, secrets, uuid, os, urllib.request, urllib.error, json
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -211,15 +210,10 @@ def registrar_correo_sorteo(user_id, sorteo_id, tipo):
         return False
 
 
-APP_TZ = ZoneInfo("America/Santiago")
-
-def ahora_app():
-    """Hora oficial de la sala: Chile continental."""
-    return datetime.now(APP_TZ).replace(tzinfo=None)
-
 def get_proximo_cierre_global():
-    ahora = ahora_app()
-    return ahora.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    ahora = datetime.now()
+    proximo = ahora.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+    return proximo
 
 def init_db():
     con = db(); c = con.cursor()
@@ -407,7 +401,7 @@ def sortear():
     con=db(); c=con.cursor()
     try:
         c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' AND fecha_hora_cierre <=? ORDER BY id ASC LIMIT 1"),
-                  (ahora_app().isoformat(),))
+                  (datetime.now().isoformat(),))
         row=c.fetchone()
         if not row: con.close(); return
         sid=row[0]
@@ -427,16 +421,18 @@ def sortear():
             c.execute(q("SELECT nombre FROM animales WHERE id=?"),(ganador,))
             animal_ganador=c.fetchone()[0]
 
-            # Regla de la app: cada apuesta que acierta paga x25.
+            # Nueva regla de premios: se paga SOLO el 75% del pozo.
+            # Si hay varios ganadores, ese 75% se divide en partes iguales entre ellos.
             c.execute(q("SELECT usuario_id,SUM(monto) FROM apuestas WHERE sorteo_id=? AND animal_id=? GROUP BY usuario_id"),(sid,ganador))
             ganadores=c.fetchall()
             premios=[]
-            for uid,apostado_usd in ganadores:
-                premio=float(apostado_usd or 0) * PREMIO_MULTIPLICADOR
-                premios.append([uid,premio])
+            if ganadores:
+                premio_por_ganador = fondo / len(ganadores)
+                for uid,_apostado_usd in ganadores:
+                    premios.append([uid,premio_por_ganador])
             for uid,premio in premios:
                 c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"),(premio,uid))
-                registrar_movimiento(c, uid, 'PREMIO', premio, f'sorteo:{sid}', f'Premio x{PREMIO_MULTIPLICADOR} por acertar {animal_ganador}')
+                registrar_movimiento(c, uid, 'PREMIO', premio, f'sorteo:{sid}', f'Premio: 75% del pozo, dividido entre {len(ganadores)} ganador(es)')
             if ganadores:
                 c.execute(q("UPDATE sorteos SET estado='PAGADO' WHERE id=?"),(sid,))
             else:
@@ -456,8 +452,8 @@ def sortear():
                           (sid,uid,ganador))
                 acierto_usd=float(c.fetchone()[0] or 0)
 
-                if acierto_usd>0:
-                    premio_usd=acierto_usd*PREMIO_MULTIPLICADOR
+                if acierto_usd>0 and ganadores:
+                    premio_usd=fondo/len(ganadores)
                     c.execute(q("SELECT saldo FROM usuarios WHERE id=?"),(uid,))
                     saldo_actual_usd=float(c.fetchone()[0] or 0)
                     premio_local=usd_to_local(premio_usd,cfg)
@@ -618,7 +614,7 @@ def api_referral_claim():
         if not draw: con.close(); return jsonify({"ok":False,"msg":"No hay un sorteo abierto."}),400
         sid,cierre=draw
         try:
-            if cierre and datetime.fromisoformat(str(cierre)) <= ahora_app():
+            if cierre and datetime.fromisoformat(str(cierre)) <= datetime.now():
                 con.close(); return jsonify({"ok":False,"msg":"El sorteo actual ya cerró. Intenta con el próximo."}),400
         except Exception: pass
         c.execute(q("SELECT animal_id FROM apuestas WHERE sorteo_id=? AND usuario_id=? AND monto=0"),(sid,uid)); usados={int(x[0]) for x in c.fetchall()}
@@ -693,32 +689,20 @@ def player():
         proximo = get_proximo_cierre_global()
         c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado) VALUES (?, 'ABIERTO')"),(proximo.isoformat(),)); con.commit()
         c.execute(q("SELECT * FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); s=c.fetchone()
-    else:
-        # Si una versión anterior dejó un cierre adelantado (por ejemplo 155 min),
-        # corrígelo al próximo cambio de hora oficial de la sala.
-        try:
-            cierre_actual = datetime.fromisoformat(str(s[1])) if s[1] else None
-            cierre_esperado = get_proximo_cierre_global()
-            if cierre_actual is None or abs((cierre_actual - cierre_esperado).total_seconds()) > 90:
-                c.execute(q("UPDATE sorteos SET fecha_hora_cierre=? WHERE id=? AND estado='ABIERTO'"),(cierre_esperado.isoformat(),s[0]))
-                con.commit()
-                c.execute(q("SELECT * FROM sorteos WHERE id=?"),(s[0],)); s=c.fetchone()
-        except Exception:
-            pass
     c.execute(q("SELECT saldo,email,pais,moneda FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
     c.execute(q("SELECT * FROM animales")); anims=c.fetchall()
     c.execute(q("SELECT fecha_hora_cierre, animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') ORDER BY id DESC LIMIT 24")); historial=c.fetchall()
     con.close()
     pais=u[2] if u and u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
     saldo_usd=float(u[0] or 0) if u else 0
-    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
+    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, premio_multiplicador=None, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
 
 @app.route('/api/configuracion-juego')
 def api_configuracion_juego():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     con=db(); c=con.cursor(); c.execute(q("SELECT pais FROM usuarios WHERE id=?"),(session['user'],)); r=c.fetchone(); con.close()
     pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
-    out=dict(cfg); out.update({"pais":pais,"premio_multiplicador":PREMIO_MULTIPLICADOR})
+    out=dict(cfg); out.update({"pais":pais,"premio_multiplicador":None,"premio_porcentaje":75})
     return jsonify({"ok":True,"config":out})
 
 @app.route('/api/metodos-pago')
@@ -734,22 +718,14 @@ def api_metodos_pago():
         c.execute(q("""
             SELECT id,nombre,tipo,destino,titular,banco,instrucciones,enlace
             FROM metodos_pago
-            WHERE pais=? AND activo=1
-              AND (
+            WHERE pais=? AND activo=1 AND (
                 TRIM(COALESCE(destino,''))<>'' OR
-                TRIM(COALESCE(titular,''))<>'' OR
-                TRIM(COALESCE(banco,''))<>'' OR
-                TRIM(COALESCE(instrucciones,''))<>'' OR
-                TRIM(COALESCE(enlace,''))<>''
-              )
-              AND (
-                ?='USA' OR (
-                  LOWER(TRIM(COALESCE(tipo,''))) NOT LIKE '%paypal%' AND
-                  LOWER(TRIM(COALESCE(nombre,''))) NOT LIKE '%paypal%'
-                )
-              )
+                TRIM(COALESCE(enlace,''))<>'' OR
+                LOWER(TRIM(COALESCE(tipo,''))) LIKE '%paypal%' OR
+                LOWER(TRIM(COALESCE(nombre,''))) LIKE '%paypal%'
+            )
             ORDER BY id
-        """),(pais,pais))
+        """),(pais,))
         rows=c.fetchall(); con.close()
         return jsonify({"ok":True,"pais":pais,"metodos":[
             {"id":x[0],"nombre":x[1],"tipo":x[2],"destino":x[3] or "","titular":x[4] or "","banco":x[5] or "","instrucciones":x[6] or "","enlace":x[7] or ""}
@@ -789,7 +765,7 @@ def apostar_multiple():
         if not row: con.close(); return jsonify({"ok":False,"msg":"No hay un sorteo abierto"}),400
         sid,cierre=row
         try:
-            if cierre and datetime.fromisoformat(str(cierre)) <= ahora_app(): con.close(); return jsonify({"ok":False,"msg":"El sorteo ya cerró"}),400
+            if cierre and datetime.fromisoformat(str(cierre)) <= datetime.now(): con.close(); return jsonify({"ok":False,"msg":"El sorteo ya cerró"}),400
         except Exception: pass
         c.execute(q("UPDATE usuarios SET saldo=saldo-? WHERE id=? AND saldo>=?"),(total_usd,session['user'],total_usd))
         if c.rowcount != 1:
@@ -806,7 +782,7 @@ def apostar_multiple():
         enviar_correo_async(u[1],f"Confirmación de tu apuesta - Sorteo #{sid}",
             f"Hola,\n\nTu apuesta fue registrada correctamente.\n\n"
             f"Moneda: {cfg['currency']}\nAnimales elegidos:\n"+"\n".join(nombres)+
-            f"\n\nTotal apostado: {format_local(total_local,cfg)}\nPremio por acierto: x{PREMIO_MULTIPLICADOR}\n\nGloballotery")
+            f"\n\nTotal apostado: {format_local(total_local,cfg)}\nPremio: 75% del pozo, dividido entre los ganadores\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Apuesta registrada y correo enviado","total_local":total_local,"total_usd":total_usd,"moneda":cfg['currency']})
     except Exception as e:
         if con:
@@ -1024,24 +1000,6 @@ def api_historial_sorteos():
     c.execute(q("SELECT id,fecha_hora_cierre,animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') AND animal_ganador IS NOT NULL ORDER BY id DESC LIMIT 30"))
     rows=c.fetchall(); con.close()
     return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "","animal_ganador":r[2]} for r in rows])
-
-@app.route('/api/estado-sala')
-def api_estado_sala():
-    if 'user' not in session:
-        return jsonify({"ok":False,"msg":"No logueado"}),401
-    con=None
-    try:
-        con=db(); c=con.cursor()
-        c.execute(q("SELECT id,fecha_hora_cierre,estado FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
-        row=c.fetchone(); con.close()
-        if not row:
-            return jsonify({"ok":False,"msg":"No hay sorteo abierto"}),404
-        return jsonify({"ok":True,"sorteo_id":int(row[0]),"cierre":str(row[1] or ''),"estado":row[2],"pausado":bool(get_config()[0])})
-    except Exception as e:
-        if con:
-            try: con.close()
-            except Exception: pass
-        return jsonify({"ok":False,"msg":"No se pudo consultar el estado de la sala"}),500
 
 @app.route('/api/ultimo-resultado')
 def api_ultimo_resultado():
