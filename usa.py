@@ -593,6 +593,17 @@ def api_configuracion_juego():
             try: con2.close()
             except Exception: pass
         draw=None; saldo_row=None
+    # Calculamos el tiempo restante EN EL SERVIDOR.
+    # Así el navegador no tiene que interpretar fecha_hora_cierre ni zonas horarias.
+    segundos_restantes = max(0, int(tiempo_min * 60))
+    if draw and draw[1]:
+        try:
+            cierre_dt = datetime.fromisoformat(str(draw[1]).replace("Z", "+00:00"))
+            ahora_dt = datetime.now(cierre_dt.tzinfo) if cierre_dt.tzinfo else datetime.now()
+            segundos_restantes = max(0, int((cierre_dt - ahora_dt).total_seconds()))
+        except Exception:
+            segundos_restantes = max(0, int(tiempo_min * 60))
+
     out=dict(cfg)
     out.update({
         "pais":pais,
@@ -601,6 +612,7 @@ def api_configuracion_juego():
         "tiempo_min":int(tiempo_min),
         "sorteo_id":draw[0] if draw else None,
         "fecha_hora_cierre":draw[1] if draw else None,
+        "segundos_restantes":segundos_restantes,
         "saldo":float(saldo_row[0] or 0) if saldo_row else 0,
         "saldo_local":usd_to_local(float(saldo_row[0] or 0),cfg) if saldo_row else 0
     })

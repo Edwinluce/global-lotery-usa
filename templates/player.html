@@ -249,9 +249,11 @@ async function cargarEstadoEnVivo(forzarResultado=false){
       const saldoLocal=Number(c.saldo_local??usdToLocal(saldoActual));
       const se=document.getElementById('saldo'); if(se)se.innerText=money(saldoLocal);
     }
-    if(c.fecha_hora_cierre){
-      const parsed=new Date(String(c.fecha_hora_cierre));
-      if(!Number.isNaN(parsed.getTime())) cierre=parsed;
+    // El servidor entrega los segundos reales que faltan.
+    // No usamos new Date(fecha_hora_cierre), evitando errores de zona horaria.
+    if(c.segundos_restantes!==undefined){
+      segundosRestantesServidor=Math.max(0, Number(c.segundos_restantes)||0);
+      ultimaSincronizacionTimer=Date.now();
     }
     salaPausada=!!c.pausado;
     const aviso=document.getElementById('estadoSalaLive');
@@ -271,12 +273,15 @@ async function cargarEstadoEnVivo(forzarResultado=false){
 cargarEstadoEnVivo();
 setInterval(cargarEstadoEnVivo,3000);
 
-let cierre=new Date();
+let segundosRestantesServidor=0;
+let ultimaSincronizacionTimer=Date.now();
 let periodoServidor=periodoId;
 let salaPausada=false;
-function getCierreGlobal(){return cierre}
+function getCierreGlobal(){return new Date(Date.now()+Math.max(0,segundosRestantesServidor)*1000)}
 function actualizarTemporizador(){
- let diff=Math.max(0,Math.floor((cierre-new Date())/1000));
+ // Entre sincronizaciones, el contador avanza localmente solo para que se vea fluido.
+ const transcurridos=Math.floor((Date.now()-ultimaSincronizacionTimer)/1000);
+ const diff=Math.max(0,Math.floor(segundosRestantesServidor)-transcurridos);
  let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');
  const timer=document.getElementById('timer'); if(timer)timer.innerText=txt;
  const cd=document.getElementById('countdownSala'); if(cd)cd.innerText=txt;
