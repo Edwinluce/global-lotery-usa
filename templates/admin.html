@@ -56,7 +56,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
     <div class="rate-note">Aquí puedes cambiar las cuentas/números que verá cada jugador según su país. No necesitas tocar el código ni volver a desplegar para cambiar un dato.</div>
     <div class="flex" style="margin-top:12px"><button class="btn btn-green" onclick="agregarMetodoPago()">➕ Agregar método</button><button class="btn btn-gray" onclick="abrirMetodosPago()">↻ Actualizar</button></div>
     <div id="metodosEstado" style="margin:12px 0;color:#1ee66d;font-weight:800"></div>
-    <div style="overflow:auto"><table><thead><tr><th>País</th><th>Método</th><th>Destino / número / correo</th><th>Titular</th><th>Banco</th><th>Instrucciones</th><th>Activo</th><th>Acción</th></tr></thead><tbody id="tablaMetodosPago"></tbody></table></div>
+    <div style="overflow:auto"><table><thead><tr><th>País</th><th>Método</th><th>Destino / número / correo</th><th>Enlace de pago</th><th>Texto botón</th><th>Titular</th><th>Banco</th><th>Instrucciones</th><th>Activo</th><th>Acción</th></tr></thead><tbody id="tablaMetodosPago"></tbody></table></div>
   </div>
 </div>
 
@@ -134,16 +134,19 @@ async function rechazarRetiro(id){
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function escAttr(v){return esc(v);}
 function metodoFila(x){
- const paises=['Perú','Chile','USA','Colombia','México','Ecuador','Argentina','Bolivia'];
+ const paises=['Perú','Chile','USA','Venezuela','Colombia','México','Ecuador','Argentina','Bolivia'];
  const opts=paises.map(p=>`<option value="${escAttr(p)}" ${x.pais===p?'selected':''}>${esc(p)}</option>`).join('');
+ const key=x.id||'new';
  return `<tr data-id="${x.id||''}">
- <td><select id="mp_pais_${x.id||'new'}" style="background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px">${opts}</select></td>
- <td><input id="mp_nombre_${x.id||'new'}" value="${escAttr(x.nombre||'')}" placeholder="Yape / BCP / Zelle" style="width:120px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
- <td><input id="mp_destino_${x.id||'new'}" value="${escAttr(x.destino||'')}" placeholder="Número / correo / cuenta" style="width:180px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
- <td><input id="mp_titular_${x.id||'new'}" value="${escAttr(x.titular||'')}" placeholder="Titular" style="width:130px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
- <td><input id="mp_banco_${x.id||'new'}" value="${escAttr(x.banco||'')}" placeholder="Banco" style="width:110px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
- <td><input id="mp_inst_${x.id||'new'}" value="${escAttr(x.instrucciones||'')}" placeholder="Instrucciones" style="width:180px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
- <td><input id="mp_activo_${x.id||'new'}" type="checkbox" ${x.activo!==false?'checked':''}></td>
+ <td><select id="mp_pais_${key}" style="background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px">${opts}</select></td>
+ <td><input id="mp_nombre_${key}" value="${escAttr(x.nombre||'')}" placeholder="PayPal / Yape / BCP" style="width:130px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_destino_${key}" value="${escAttr(x.destino||'')}" placeholder="Número / correo / cuenta" style="width:180px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_enlace_${key}" type="url" value="${escAttr(x.enlace||'')}" placeholder="https://www.paypal.com/..." style="width:240px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_boton_${key}" value="${escAttr(x.texto_boton||'')}" placeholder="💳 PAGAR CON PAYPAL" style="width:180px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_titular_${key}" value="${escAttr(x.titular||'')}" placeholder="Titular" style="width:130px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_banco_${key}" value="${escAttr(x.banco||'')}" placeholder="Banco" style="width:110px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_inst_${key}" value="${escAttr(x.instrucciones||'')}" placeholder="Instrucciones" style="width:180px;background:#090909;color:#fff;border:1px solid #444;border-radius:8px;padding:7px"></td>
+ <td><input id="mp_activo_${key}" type="checkbox" ${x.activo!==false?'checked':''}></td>
  <td><button class="btn btn-green" style="padding:7px 10px" onclick="guardarMetodoPago(${x.id||0})">Guardar</button>${x.id?`<button class="btn btn-red" style="padding:7px 10px;margin-left:4px" onclick="eliminarMetodoPago(${x.id})">X</button>`:''}</td></tr>`;
 }
 async function abrirMetodosPago(){
@@ -158,20 +161,30 @@ async function abrirMetodosPago(){
 }
 function agregarMetodoPago(){
  const id='new_'+Date.now();
- document.getElementById('tablaMetodosPago').insertAdjacentHTML('beforeend',metodoFila({id:0,pais:'Perú',nombre:'',tipo:'banco',activo:true}));
+ document.getElementById('tablaMetodosPago').insertAdjacentHTML('beforeend',metodoFila({id:0,pais:'USA',nombre:'PayPal',tipo:'paypal',destino:'',titular:'',banco:'PayPal',instrucciones:'',texto_boton:'💳 COMPRAR CON PAYPAL',enlace:'',activo:true}));
  document.getElementById('metodosEstado').innerText='Nuevo método: completa los datos y pulsa Guardar.';
 }
 async function guardarMetodoPago(id){
  const k=id||'new';
- const data={id:id||0,pais:document.getElementById('mp_pais_'+k)?.value,nombre:document.getElementById('mp_nombre_'+k)?.value,tipo:'manual',destino:document.getElementById('mp_destino_'+k)?.value,titular:document.getElementById('mp_titular_'+k)?.value,banco:document.getElementById('mp_banco_'+k)?.value,instrucciones:document.getElementById('mp_inst_'+k)?.value,activo:document.getElementById('mp_activo_'+k)?.checked};
- // For a new row, the DOM key is "new" because the row has no DB id.
- if(!id){
-   const tr=document.querySelector('#tablaMetodosPago tr:last-child');
-   data.pais=tr.querySelector('select')?.value; data.nombre=tr.querySelectorAll('input')[0]?.value; data.destino=tr.querySelectorAll('input')[1]?.value; data.titular=tr.querySelectorAll('input')[2]?.value; data.banco=tr.querySelectorAll('input')[3]?.value; data.instrucciones=tr.querySelectorAll('input')[4]?.value; data.activo=tr.querySelector('input[type=checkbox]')?.checked;
- }
+ const data={
+   id:id||0,
+   pais:document.getElementById('mp_pais_'+k)?.value||'',
+   nombre:document.getElementById('mp_nombre_'+k)?.value||'',
+   tipo:'manual',
+   destino:document.getElementById('mp_destino_'+k)?.value||'',
+   enlace:document.getElementById('mp_enlace_'+k)?.value?.trim()||'',
+   texto_boton:document.getElementById('mp_boton_'+k)?.value?.trim()||'',
+   titular:document.getElementById('mp_titular_'+k)?.value||'',
+   banco:document.getElementById('mp_banco_'+k)?.value||'',
+   instrucciones:document.getElementById('mp_inst_'+k)?.value||'',
+   activo:document.getElementById('mp_activo_'+k)?.checked
+ };
  if(!data.nombre){alert('Escribe el nombre del método');return;}
- const r=await fetch('/api/admin/metodos-pago',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify(data)}); const j=await r.json();
- document.getElementById('metodosEstado').innerText=j.msg||''; if(j.ok) abrirMetodosPago(); else alert(j.msg||'No se pudo guardar');
+ if(data.enlace && !/^https?:\\/\\//i.test(data.enlace)){alert('El enlace debe comenzar con https:// o http://');return;}
+ const r=await fetch('/api/admin/metodos-pago',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify(data)});
+ const j=await r.json();
+ document.getElementById('metodosEstado').innerText=j.msg||'';
+ if(j.ok) abrirMetodosPago(); else alert(j.msg||'No se pudo guardar');
 }
 async function eliminarMetodoPago(id){
  if(!confirm('¿Eliminar este método de pago?'))return;
