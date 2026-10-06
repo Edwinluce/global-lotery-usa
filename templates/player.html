@@ -511,7 +511,7 @@ async function cargarMetodosPago(){
  box.innerHTML='<div style="color:#aaa;font-size:11px">Cargando...</div>'; info.innerHTML=''; metodoPagoSeleccionado=null;
  try{
    const r=await fetch('/api/metodos-pago'); const d=await r.json();
-   if(!d.ok || !Array.isArray(d.metodos) || !d.metodos.length){box.innerHTML='<div style="color:#ffcc4d;font-size:12px">⚠️ No hay un método de pago activo configurado para '+escHtml(d.pais||GAME_CONFIG.pais)+'. Entra en Admin → Métodos de Pago y verifica que esté Activo.</div>';return;}
+   if(!d.ok || !d.metodos || !d.metodos.length){box.innerHTML='<div style="color:#ffcc4d;font-size:12px">⚠️ No hay un método de pago configurado para '+escHtml(d.pais||GAME_CONFIG.pais)+'.</div>';return;}
    box.innerHTML='';
    d.metodos.forEach((m,i)=>{
      const b=document.createElement('button'); b.type='button';
@@ -535,16 +535,14 @@ function seleccionarMetodoPago(m,btn){
  metodoPagoSeleccionado=m;
  document.querySelectorAll('#paymentMethods button').forEach(x=>{x.style.background='linear-gradient(180deg,#1f6b43,#12452c)';x.style.color='#fff'});
  btn.style.background='linear-gradient(180deg,#d4a853,#9c7420)';btn.style.color='#000';
- let html='<div style="font-size:14px;margin-bottom:6px"><b style="color:#ffcc4d">'+escHtml(m.nombre)+'</b></div>';
- if(m.destino) html+='<div><b>Destino:</b> '+escHtml(m.destino)+'</div>';
- if(m.titular) html+='<div><b>Titular:</b> '+escHtml(m.titular)+'</div>';
- if(m.banco) html+='<div><b>Banco:</b> '+escHtml(m.banco)+'</div>';
- if(m.instrucciones) html+='<div style="color:#aaa;margin-top:5px">'+escHtml(m.instrucciones)+'</div>';
- const tipoNombre=String(m.tipo||'')+' '+String(m.nombre||'');
- if(m.enlace && /^https?:\\/\\//i.test(String(m.enlace)) && !/paypal/i.test(tipoNombre)){
-   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="abrirEnlacePago()">🔗 Abrir enlace de pago</button>';
+ let html='<b style="color:#ffcc4d">'+escHtml(m.nombre)+'</b><br>';
+ if(m.destino) html+='<b>Destino:</b> '+escHtml(m.destino)+'<br>';
+ if(m.titular) html+='<b>Titular:</b> '+escHtml(m.titular)+'<br>';
+ if(m.banco) html+='<b>Banco:</b> '+escHtml(m.banco)+'<br>';
+ if(m.instrucciones) html+='<span style="color:#aaa">'+escHtml(m.instrucciones)+'</span><br>';
+ if(m.enlace && !/paypal/i.test(String(m.tipo||'')+' '+String(m.nombre||''))){
+   html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px" onclick="copiarDestino()">📋 Copiar datos de pago</button>';
  }
- if(m.destino) html+='<button type="button" class="btn-cancel" style="border-color:#d4a853;color:#fff;margin-top:8px;margin-left:5px" onclick="copiarDestino()">📋 Copiar datos</button>';
  document.getElementById('paymentInfo').innerHTML=html;
 }
 function abrirEnlacePago(){
