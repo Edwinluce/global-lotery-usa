@@ -180,7 +180,7 @@ async function guardarMetodoPago(id){
    activo:document.getElementById('mp_activo_'+k)?.checked
  };
  if(!data.nombre){alert('Escribe el nombre del método');return;}
- if(data.enlace && !/^https?:\\/\\//i.test(data.enlace)){alert('El enlace debe comenzar con https:// o http://');return;}
+ if(data.enlace && !/^https?:\/\//i.test(data.enlace)){alert('El enlace debe comenzar con https:// o http://');return;}
  const r=await fetch('/api/admin/metodos-pago',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify(data)});
  const j=await r.json();
  document.getElementById('metodosEstado').innerText=j.msg||'';
