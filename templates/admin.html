@@ -19,14 +19,14 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 <body>
 
 <div class="card card-top">
-  <div><div style="font-weight:900;font-size:18px">🦁 ADMIN GLOBAL</div><div class="badge"><span class="dot"></span> BCP {{ bcp_cuenta }} | {{ estado }} - {{ tiempo_min }} min</div></div>
+  <div><div style="font-weight:900;font-size:18px">🦁 ADMIN GLOBAL</div><div class="badge"><span class="dot"></span> BCP {{ bcp_cuenta }} | <span id="adminEstado">{{ estado }}</span> - <span id="adminTiempo">{{ tiempo_min }}</span> min</div></div>
   <div class="flex"><button class="btn btn-gold" onclick="location.href='/admin/usuarios'">👥 Usuarios</button><button class="btn btn-dark" onclick="location.href='/admin/logout'">Salir</button></div>
 </div>
 
-<div class="card"><div class="title">💰 Recaudado Actual</div><div class="value">S/ {{ recaudado }}</div></div>
-<div class="card"><div class="title">📈 Tu 25%</div><div class="value value-green">S/ {{ tu_25 }}</div></div>
-<div class="card"><div class="title">🏆 Pagado 75%</div><div class="value">S/ {{ pagado_75 }}</div></div>
-<div class="card"><div class="title">👥 {{ num_usuarios }} usuarios registrados</div><button class="btn btn-red" style="margin-top:10px" onclick="if(confirm('¿Reiniciar sala? Se cierra sorteo actual'))control('reiniciar')">Reiniciar Sorteo</button></div>
+<div class="card"><div class="title">💰 Recaudado Actual</div><div class="value" id="adminRecaudado">S/ {{ recaudado }}</div></div>
+<div class="card"><div class="title">📈 Tu 25%</div><div class="value value-green" id="adminTu25">S/ {{ tu_25 }}</div></div>
+<div class="card"><div class="title">🏆 Pagado 75%</div><div class="value" id="adminPagado75">S/ {{ pagado_75 }}</div></div>
+<div class="card"><div class="title">👥 <span id="adminUsuarios">{{ num_usuarios }}</span> usuarios registrados</div><button class="btn btn-red" style="margin-top:10px" onclick="if(confirm('¿Reiniciar sala? Se cierra sorteo actual'))control('reiniciar')">Reiniciar Sorteo</button></div>
 
 <div class="card" style="border:1.5px solid #1ee66d33">
   <div style="font-weight:900;margin-bottom:12px">🎮 Control Sala</div>
@@ -35,7 +35,7 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
   {% if pausado %}<div style="color:#ff2d2d;margin-top:10px;font-weight:bold">⛔ SALA PAUSADA - No se aceptan apuestas</div>{% endif %}
 </div>
 
-<div class="flex"><button class="btn btn-gold" onclick="document.getElementById('recargas').scrollIntoView()">💳 Recargas ({{ recargas_count }})</button><button class="btn btn-gray" onclick="abrirApuestas()">🦁 Animales Apostados</button></div>
+<div class="flex"><button class="btn btn-gold" onclick="document.getElementById('recargas').scrollIntoView()">💳 Recargas (<span id="adminRecargasCount">{{ recargas_count }}</span>)</button><button class="btn btn-gray" onclick="abrirApuestas()">🦁 Animales Apostados</button></div>
 <div class="flex" style="margin-top:10px"><button class="btn btn-gray" onclick="abrirGanancias()">📜 Ganancias</button><button class="btn btn-gray" onclick="abrirApuestas()">🎯 Apuestas Actual</button></div>
 <div style="margin-top:10px"><button class="btn btn-outline-red" onclick="abrirRetiros()">💸 Retiros Pendientes</button></div>
 <div style="margin-top:10px" class="flex"><button class="btn btn-gold" onclick="abrirTasas()">🌎 Tasas por País</button><button class="btn btn-gold" onclick="abrirMetodosPago()">💳 Métodos de Pago</button></div>
@@ -85,9 +85,81 @@ table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid
 <script>
 const CSRF_TOKEN = {{ csrf_token|tojson }};
 function cerrar(){document.querySelectorAll('.modal').forEach(m=>m.style.display='none')}
-async function control(a){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({accion:a})});location.reload()}
-async function controlTiempo(m){await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({accion:'tiempo',min:m})});location.reload()}
-async function aprobar(id){let r=await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});let j=await r.json();alert(j.msg);location.reload()}
+async function control(a){
+  const r=await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({accion:a})});
+  const j=await r.json().catch(()=>({ok:false,msg:'Respuesta inválida'}));
+  if(!j.ok) return alert(j.msg||'No se pudo cambiar el estado');
+  await cargarEstadoAdmin();
+}
+async function controlTiempo(m){
+  const r=await fetch('/api/admin/control',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({accion:'tiempo',min:m})});
+  const j=await r.json().catch(()=>({ok:false,msg:'Respuesta inválida'}));
+  if(!j.ok) return alert(j.msg||'No se pudo cambiar el tiempo');
+  await cargarEstadoAdmin();
+}
+async function aprobar(id){
+  let r=await fetch('/api/admin/aprobar-recarga',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});
+  let j=await r.json().catch(()=>({ok:false,msg:'Respuesta inválida'}));
+  alert(j.msg||'Operación realizada');
+  if(j.ok) await cargarEstadoAdmin();
+}
+
+
+async function cargarEstadoAdmin(){
+  try{
+    const r=await fetch('/api/admin/estado',{cache:'no-store'});
+    if(r.status===401) return;
+    const d=await r.json();
+    if(!d.ok) return;
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.innerText=v;};
+    set('adminRecaudado','S/ '+Number(d.recaudado||0).toLocaleString('es-PE'));
+    set('adminTu25','S/ '+Number(d.tu_25||0).toLocaleString('es-PE'));
+    set('adminPagado75','S/ '+Number(d.pagado_75||0).toLocaleString('es-PE'));
+    set('adminUsuarios',d.num_usuarios||0);
+    set('adminRecargasCount',d.recargas_count||0);
+    set('adminEstado',d.estado||'ABIERTO');
+    set('adminTiempo',d.tiempo_min||60);
+    const pausado=!!d.pausado;
+    const activeBtns=document.querySelectorAll('.btn-gray');
+    // Actualiza la indicación de pausa sin reconstruir la pantalla.
+    let aviso=document.getElementById('adminPausaAviso');
+    if(pausado){
+      if(!aviso){
+        aviso=document.createElement('div'); aviso.id='adminPausaAviso';
+        aviso.style.cssText='color:#ff2d2d;margin-top:10px;font-weight:bold';
+        aviso.textContent='⛔ SALA PAUSADA - No se aceptan apuestas';
+        const card=[...document.querySelectorAll('.card')].find(x=>x.innerText.includes('🎮 Control Sala'));
+        if(card) card.appendChild(aviso);
+      }
+    }else if(aviso){ aviso.remove(); }
+
+    // Si el panel de recargas está visible, actualízalo sin recargar la página.
+    const card=document.getElementById('recargas');
+    if(card && d.recargas){
+      const oldTable=card.querySelector('table');
+      if(oldTable || d.recargas.length){
+        let html='<table><tr><th>Email</th><th>Monto</th><th>Operación</th><th>Método</th><th>Remitente</th><th>Voucher</th><th></th></tr>';
+        d.recargas.forEach(x=>{
+          const monto=x.monto_local??x.monto??0, moneda=x.moneda||'';
+          const voucher=x.voucher?`<a href="/${String(x.voucher).replace(/^\\//,'')}" target="_blank">Ver</a>`:'-';
+          html+=`<tr><td>${escAdmin(x.email)}</td><td>${monto} ${escAdmin(moneda)}</td><td>${escAdmin(x.operacion)}</td><td>${escAdmin(x.metodo||'-')}<br><small>${escAdmin(x.destino||'')}</small></td><td>${escAdmin(x.remitente||'-')}</td><td>${voucher}</td><td><button class="btn btn-green" style="padding:6px 10px" onclick="aprobar(${Number(x.id)})">Aprobar</button></td></tr>`;
+        });
+        if(!d.recargas.length) html='<div style="opacity:.5;margin-top:10px">No hay recargas pendientes</div>';
+        else html+='</table>';
+        card.innerHTML='<div style="font-weight:900">💳 Recargas Manuales Pendientes</div>'+html;
+      }
+    }
+
+    // Si está abierto el modal de apuestas/retiros, refresca su contenido.
+    const ma=document.getElementById('modalApuestas');
+    if(ma && ma.style.display==='flex') abrirApuestas();
+    const mr=document.getElementById('modalRetiros');
+    if(mr && mr.style.display==='flex') abrirRetiros();
+  }catch(e){}
+}
+function escAdmin(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+cargarEstadoAdmin();
+setInterval(cargarEstadoAdmin,5000);
 
 async function abrirRetiros(){
   document.getElementById('modalRetiros').style.display='flex';

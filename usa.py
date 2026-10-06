@@ -12,6 +12,7 @@ app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 MI_CUENTA_BCP = "19106864219053"
 MI_CCI_BCP = "00219110686421905358"
@@ -526,7 +527,7 @@ def api_register():
                       (email,pw,tel,0,ahora,pais,cfg['currency'],1,'1.0',ahora))
             uid=c.lastrowid
         con.commit(); con.close()
-        session['user']=uid; session['email']=email
+        session.permanent=True; session['user']=uid; session['email']=email
         return jsonify({"ok":True,"pais":pais,"moneda":cfg['currency']})
     except Exception as e:
         try: con.rollback(); con.close()
@@ -549,7 +550,7 @@ def api_login():
     pais=row[4] if row[4] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
     if not row[5]:
         c.execute(q("UPDATE usuarios SET pais=?,moneda=? WHERE id=?"),(pais,cfg['currency'],row[0])); con.commit()
-    con.close(); session.clear(); session['user']=row[0]; session['email']=row[1]
+    con.close(); session.clear(); session.permanent=True; session['user']=row[0]; session['email']=row[1]
     return jsonify({"ok":True, "saldo": row[2], "pais":pais, "moneda":cfg['currency']})
 
 @app.route('/logout')
@@ -577,7 +578,32 @@ def api_configuracion_juego():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     con=db(); c=con.cursor(); c.execute(q("SELECT pais FROM usuarios WHERE id=?"),(session['user'],)); r=c.fetchone(); con.close()
     pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
-    out=dict(cfg); out.update({"pais":pais,"premio_multiplicador":PREMIO_MULTIPLICADOR})
+    pausado, tiempo_min = get_config()
+    c2=db().cursor() if False else None
+    con2=None
+    try:
+        con2=db(); c2=con2.cursor()
+        c2.execute(q("SELECT id,fecha_hora_cierre FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+        draw=c2.fetchone()
+        c2.execute(q("SELECT saldo FROM usuarios WHERE id=?"),(session['user'],))
+        saldo_row=c2.fetchone()
+        con2.close()
+    except Exception:
+        if con2:
+            try: con2.close()
+            except Exception: pass
+        draw=None; saldo_row=None
+    out=dict(cfg)
+    out.update({
+        "pais":pais,
+        "premio_multiplicador":PREMIO_MULTIPLICADOR,
+        "pausado":bool(pausado),
+        "tiempo_min":int(tiempo_min),
+        "sorteo_id":draw[0] if draw else None,
+        "fecha_hora_cierre":draw[1] if draw else None,
+        "saldo":float(saldo_row[0] or 0) if saldo_row else 0,
+        "saldo_local":usd_to_local(float(saldo_row[0] or 0),cfg) if saldo_row else 0
+    })
     return jsonify({"ok":True,"config":out})
 
 @app.route('/api/pozo-actual')
@@ -952,7 +978,7 @@ def api_admin_login():
     d=request.json or {}
     user=str(d.get('user','')); password=str(d.get('pass',''))
     if user==ADMIN_USER and ADMIN_PASS_HASH and verificar_password(password, ADMIN_PASS_HASH):
-        session.clear(); session['admin']=True; session['admin_csrf']=secrets.token_urlsafe(32)
+        session.clear(); session.permanent=True; session['admin']=True; session['admin_csrf']=secrets.token_urlsafe(32)
         return jsonify({"ok":True})
     return jsonify({"ok":False,"msg":"Credenciales incorrectas"}),401
 
@@ -975,6 +1001,54 @@ def admin_panel():
     pagado_75 = int(recaudado*0.75)
     estado = "PAUSADO" if pausado else "ABIERTO"
     return render_template('admin.html', sorteo_actual=sorteo_actual, recargas_pendientes=recargas, bcp_cuenta=MI_CUENTA_BCP, estado=estado, tiempo_min=tiempo_min, recaudado=recaudado, tu_25=tu_25, pagado_75=pagado_75, num_usuarios=num_usuarios, recargas_count=len(recargas), pausado=pausado, csrf_token=session.get('admin_csrf',''))
+
+
+@app.route('/api/admin/estado')
+def api_admin_estado():
+    if not session.get('admin'):
+        return jsonify({"ok":False,"msg":"No admin"}),401
+    try:
+        pausado, tiempo_min = get_config()
+        con=db(); c=con.cursor()
+        c.execute(q("SELECT * FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+        sorteo=c.fetchone()
+        sid = sorteo[0] if sorteo else 0
+        c.execute(q("SELECT COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=?"), (sid,))
+        recaudado=float(c.fetchone()[0] or 0)
+        c.execute(q("SELECT COUNT(*) FROM usuarios"))
+        num_usuarios=int(c.fetchone()[0] or 0)
+        c.execute(q("""SELECT r.id,r.user_id,r.monto,r.operacion,r.estado,r.fecha,r.voucher,
+                              r.monto_local,r.moneda,r.metodo_pago_nombre,r.metodo_pago_destino,
+                              r.nombre_remitente,u.email
+                       FROM recargas_bcp r
+                       LEFT JOIN usuarios u ON u.id=r.user_id
+                       WHERE r.estado='pendiente' ORDER BY r.id DESC"""))
+        rows=c.fetchall()
+        con.close()
+        recargas=[]
+        for r in rows:
+            recargas.append({
+                "id":r[0],"user_id":r[1],"monto":r[2],"operacion":r[3],"estado":r[4],
+                "fecha":r[5],"voucher":r[6],"monto_local":r[7],"moneda":r[8],
+                "metodo":r[9],"destino":r[10],"remitente":r[11],"email":r[12]
+            })
+        return jsonify({
+            "ok":True,
+            "sorteo_id":sid,
+            "pausado":bool(pausado),
+            "estado":"PAUSADO" if pausado else "ABIERTO",
+            "tiempo_min":int(tiempo_min),
+            "recaudado":int(recaudado),
+            "tu_25":int(recaudado*0.25),
+            "pagado_75":int(recaudado*0.75),
+            "num_usuarios":num_usuarios,
+            "recargas_count":len(recargas),
+            "recargas":recargas
+        })
+    except Exception:
+        try: con.close()
+        except Exception: pass
+        return jsonify({"ok":False,"msg":"No se pudo actualizar el estado"}),500
 
 @app.route('/api/admin/aprobar-recarga', methods=['POST'])
 def aprobar_recarga():

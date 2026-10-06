@@ -98,6 +98,7 @@ async function verHistorial(){
   document.getElementById('contenidoHistorial').innerHTML=html || 'Aún no hay sorteos finalizados';
 }
 </script>
+<div id="estadoSalaLive" style="display:none;margin:8px;background:#3a1212;border:1px solid #ff4444;border-radius:12px;padding:9px;text-align:center;color:#ff7777;font-weight:800">⛔ SALA PAUSADA POR EL ADMINISTRADOR</div>
 <div class="info">
 <div class="box"><small>CURRENT PERIOD</small><b id="periodo">{{ sorteo[0] if sorteo else 0 }}</b></div>
 <div class="box live"><small>LIVE</small><b class="red" id="timer">60:00</b></div>
@@ -222,8 +223,66 @@ async function cargarPozo(){
 }
 cargarPozo();
 setInterval(cargarPozo,5000);
-function getCierreGlobal(){const unaHora=60*60*1000;return new Date(Math.ceil(Date.now()/unaHora)*unaHora)} let cierre=getCierreGlobal();
-setInterval(()=>{let diff=Math.max(0,Math.floor((cierre-new Date())/1000));let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');document.getElementById('timer').innerText=txt;let cd=document.getElementById('countdownSala');if(cd)cd.innerText=txt;if(diff<=0){mostrarResultado();cierre=getCierreGlobal();apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();cargarHistorial()}},1000);
+
+async function cargarEstadoEnVivo(forzarResultado=false){
+  try{
+    const r=await fetch('/api/configuracion-juego',{cache:'no-store'});
+    if(r.status===401) return; // Mantiene la pantalla actual; no redirige al login.
+    const d=await r.json();
+    if(!d.ok) return;
+    const c=d.config||{};
+    const nuevoPeriodo=String(c.sorteo_id??'');
+    const periodoAnterior=String(periodoServidor??'');
+    if(nuevoPeriodo && periodoAnterior && nuevoPeriodo!==periodoAnterior){
+      if(forzarResultado || Object.keys(misApuestasGuardadas||{}).length){
+        mostrarResultado();
+      }
+      apuestas={}; misApuestasGuardadas={};
+      document.querySelectorAll('.card').forEach(x=>x.classList.remove('selected'));
+      calc();
+      periodoServidor=nuevoPeriodo;
+      const pe=document.getElementById('periodo'); if(pe)pe.innerText=nuevoPeriodo;
+      cargarHistorial();
+    }
+    if(c.saldo!==undefined){
+      saldoActual=Number(c.saldo||0);
+      const saldoLocal=Number(c.saldo_local??usdToLocal(saldoActual));
+      const se=document.getElementById('saldo'); if(se)se.innerText=money(saldoLocal);
+    }
+    if(c.fecha_hora_cierre){
+      const parsed=new Date(String(c.fecha_hora_cierre));
+      if(!Number.isNaN(parsed.getTime())) cierre=parsed;
+    }
+    salaPausada=!!c.pausado;
+    const aviso=document.getElementById('estadoSalaLive');
+    if(aviso) aviso.style.display=salaPausada?'block':'none';
+    document.querySelectorAll('#grid .card').forEach(x=>{
+      x.style.opacity=salaPausada?'.55':'1';
+      x.style.pointerEvents=salaPausada?'none':'auto';
+    });
+    const btnConfirm=document.getElementById('btn-confirmar');
+    if(btnConfirm){btnConfirm.disabled=salaPausada;btnConfirm.style.opacity=salaPausada?'.5':'1';}
+    const btnClear=document.getElementById('btn-limpiar');
+    if(btnClear){btnClear.disabled=salaPausada;btnClear.style.opacity=salaPausada?'.5':'1';}
+    if(c.premio_multiplicador!==undefined) GAME_CONFIG.premio_multiplicador=Number(c.premio_multiplicador);
+    if(c.units_per_usd) GAME_CONFIG.units_per_usd=Number(c.units_per_usd);
+  }catch(e){}
+}
+cargarEstadoEnVivo();
+setInterval(cargarEstadoEnVivo,3000);
+
+let cierre=new Date();
+let periodoServidor=periodoId;
+let salaPausada=false;
+function getCierreGlobal(){return cierre}
+function actualizarTemporizador(){
+ let diff=Math.max(0,Math.floor((cierre-new Date())/1000));
+ let txt=String(Math.floor(diff/60)).padStart(2,'0')+':'+String(diff%60).padStart(2,'0');
+ const timer=document.getElementById('timer'); if(timer)timer.innerText=txt;
+ const cd=document.getElementById('countdownSala'); if(cd)cd.innerText=txt;
+ if(diff<=0 && !salaPausada){cargarEstadoEnVivo(true);}
+}
+setInterval(actualizarTemporizador,1000);
 let montoRecarga=LEVELS.length?Math.max(DEPOSIT_MIN,LEVELS[0]):DEPOSIT_MIN;
 let metodoPagoSeleccionado=null;
 const modalRecarga=document.getElementById('modalRecarga');
