@@ -9,6 +9,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
+# Mantener la sesión activa durante 30 días. En producción, define SECRET_KEY
+# como una variable de entorno fija para que los reinicios del servidor no
+# invaliden las sesiones de los jugadores.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
@@ -42,8 +46,6 @@ try:
             COUNTRY_CONFIG[_country]["units_per_usd"] = float(_rate)
 except Exception:
     pass
-
-PREMIO_MULTIPLICADOR = 25
 
 # Países habilitados actualmente para operar la plataforma.
 # El resto de COUNTRY_CONFIG queda preparado para futuras expansiones.
@@ -478,9 +480,14 @@ def sortear():
             c.execute(q("UPDATE sorteos SET recaudacion=?,fondo_premios=?,margen_plataforma=?,jackpot=?,estado='FINALIZADO' WHERE id=?"),
                       (recaud,fondo,margen,fondo,sid)); con.commit()
 
+        # Crear el siguiente sorteo inmediatamente y evitar duplicados.
         proximo=get_proximo_cierre_global(); _,tiempo=get_config()
-        c.execute(q("INSERT INTO sorteos (fecha_hora_cierre,estado,tiempo_min) VALUES (?,'ABIERTO',?)"),
-                  (proximo.isoformat(),tiempo)); con.commit()
+        c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' LIMIT 1"))
+        ya_abierto=c.fetchone()
+        if not ya_abierto:
+            c.execute(q("INSERT INTO sorteos (fecha_hora_cierre,estado,tiempo_min) VALUES (?,'ABIERTO',?)"),
+                      (proximo.isoformat(),tiempo))
+        con.commit()
     except Exception as e:
         try: con.rollback()
         except Exception: pass
@@ -627,7 +634,7 @@ def api_login():
     pais=row[4] if row[4] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
     if not row[5]:
         c.execute(q("UPDATE usuarios SET pais=?,moneda=? WHERE id=?"),(pais,cfg['currency'],row[0])); con.commit()
-    con.close(); session.clear(); session['user']=row[0]; session['email']=row[1]
+    con.close(); session.clear(); session.permanent = True; session['user']=row[0]; session['email']=row[1]
     return jsonify({"ok":True, "saldo": row[2], "pais":pais, "moneda":cfg['currency']})
 
 @app.route('/logout')
@@ -648,14 +655,14 @@ def player():
     con.close()
     pais=u[2] if u and u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
     saldo_usd=float(u[0] or 0) if u else 0
-    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
+    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
 
 @app.route('/api/configuracion-juego')
 def api_configuracion_juego():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     con=db(); c=con.cursor(); c.execute(q("SELECT pais FROM usuarios WHERE id=?"),(session['user'],)); r=c.fetchone(); con.close()
     pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
-    out=dict(cfg); out.update({"pais":pais,"premio_multiplicador":PREMIO_MULTIPLICADOR})
+    out=dict(cfg); out.update({"pais":pais})
     return jsonify({"ok":True,"config":out})
 
 @app.route('/api/pozo-actual')
@@ -983,6 +990,48 @@ def api_historial_sorteos():
     rows=c.fetchall(); con.close()
     return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "","animal_ganador":r[2]} for r in rows])
 
+@app.route('/api/estado-sorteo')
+def api_estado_sorteo():
+    if 'user' not in session:
+        return jsonify({"ok":False,"msg":"No logueado"}),401
+    con=None
+    try:
+        con=db(); c=con.cursor()
+        c.execute(q("SELECT id,fecha_hora_cierre,estado FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+        s=c.fetchone()
+        if not s:
+            _, tiempo=get_config()
+            proximo=get_proximo_cierre_global()
+            c.execute(q("INSERT INTO sorteos (fecha_hora_cierre,estado,tiempo_min) VALUES (?,'ABIERTO',?)"),
+                      (proximo.isoformat(), tiempo))
+            con.commit()
+            c.execute(q("SELECT id,fecha_hora_cierre,estado FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+            s=c.fetchone()
+
+        ahora=datetime.now()
+        cierre=datetime.fromisoformat(str(s[1]))
+        # Si el scheduler todavía no alcanzó el cierre, procesarlo aquí.
+        if cierre <= ahora:
+            con.close()
+            sortear()
+            con=db(); c=con.cursor()
+            c.execute(q("SELECT id,fecha_hora_cierre,estado FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+            s=c.fetchone()
+            if not s:
+                con.close()
+                return jsonify({"ok":False,"msg":"No hay sorteo abierto"}),503
+
+        out={"ok":True,"sorteo_id":s[0],"fecha_hora_cierre":str(s[1]),
+             "estado":s[2],"server_now":datetime.now().isoformat()}
+        con.close()
+        return jsonify(out)
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        print("ERROR ESTADO SORTEO:",e)
+        return jsonify({"ok":False,"msg":"No se pudo consultar el sorteo"}),500
+
 @app.route('/api/ultimo-resultado')
 def api_ultimo_resultado():
     con=db(); c=con.cursor()
@@ -1044,10 +1093,9 @@ def admin_panel():
     c.execute(q("SELECT r.id,r.user_id,r.monto,r.operacion,r.estado,r.fecha,r.voucher,r.monto_local,r.moneda,r.metodo_pago_nombre,r.metodo_pago_destino,r.nombre_remitente,u.email FROM recargas_bcp r LEFT JOIN usuarios u ON u.id=r.user_id WHERE r.estado='pendiente' ORDER BY r.id DESC")); recargas=c.fetchall()
     c.execute(q("SELECT COUNT(*) FROM usuarios")); num_usuarios=c.fetchone()[0] or 0
     con.close()
-    tu_25 = int(recaudado*0.25)
     pagado_75 = int(recaudado*0.75)
     estado = "PAUSADO" if pausado else "ABIERTO"
-    return render_template('admin.html', sorteo_actual=sorteo_actual, recargas_pendientes=recargas, bcp_cuenta=MI_CUENTA_BCP, estado=estado, tiempo_min=tiempo_min, recaudado=recaudado, tu_25=tu_25, pagado_75=pagado_75, num_usuarios=num_usuarios, recargas_count=len(recargas), pausado=pausado, csrf_token=session.get('admin_csrf',''))
+    return render_template('admin.html', sorteo_actual=sorteo_actual, recargas_pendientes=recargas, bcp_cuenta=MI_CUENTA_BCP, estado=estado, tiempo_min=tiempo_min, recaudado=recaudado, pagado_75=pagado_75, num_usuarios=num_usuarios, recargas_count=len(recargas), pausado=pausado, csrf_token=session.get('admin_csrf',''))
 
 @app.route('/api/admin/aprobar-recarga', methods=['POST'])
 def aprobar_recarga():
