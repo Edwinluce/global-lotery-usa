@@ -77,6 +77,7 @@ def round_local_amount(amount, config):
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 BREVO_FROM_EMAIL = os.environ.get("BREVO_FROM_EMAIL", "")
 BREVO_FROM_NAME = os.environ.get("BREVO_FROM_NAME", "Globallotery")
+ADMIN_NOTIFICATION_EMAIL = os.environ.get("ADMIN_NOTIFICATION_EMAIL", "")
 
 
 def enviar_correo(destinatario, asunto, cuerpo):
@@ -528,6 +529,8 @@ def api_register():
             uid=c.lastrowid
         con.commit(); con.close()
         session.permanent=True; session['user']=uid; session['email']=email
+        enviar_correo_async(ADMIN_NOTIFICATION_EMAIL, 'Nuevo registro de usuario - Globallotery',
+            f'Nuevo usuario registrado.\n\nCorreo: {email}\nTeléfono: {tel or "No indicado"}\nPaís: {pais}\nMoneda: {cfg["currency"]}\nID de usuario: {uid}\nFecha: {ahora}\n\nGloballotery')
         return jsonify({"ok":True,"pais":pais,"moneda":cfg['currency']})
     except Exception as e:
         try: con.rollback(); con.close()
@@ -790,6 +793,8 @@ def recarga_bcp():
             monto_local,cfg['currency'],cfg['units_per_usd'],metodo[0],metodo[1],metodo[3] or '',nombre_remitente
         ))
         con.commit(); con.close()
+        enviar_correo_async(ADMIN_NOTIFICATION_EMAIL, 'Nueva recarga pendiente - Globallotery',
+            f'Nueva solicitud de recarga pendiente.\n\nUsuario: {ur[1]}\nID de usuario: {session["user"]}\nPaís: {pais}\nMonto: {format_local(monto_local,cfg)} ({monto_usd:.2f} USD)\nMétodo de pago: {metodo[1]}\nReferencia/operación: {operacion}\nNombre del remitente: {nombre_remitente}\nVoucher: {voucher_path or "No adjuntado"}\nFecha: {datetime.now().isoformat()}\n\nRevisa y confirma la recarga desde el panel de administración.\n\nGloballotery')
         return jsonify({"ok":True,"msg":f"Solicitud de recarga por {format_local(monto_local,cfg)} enviada"})
     except Exception as e:
         if con:
