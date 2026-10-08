@@ -632,13 +632,21 @@ def api_pozo_actual():
         r=c.fetchone()
         pais=r[0] if r and r[0] in COUNTRY_CONFIG else 'USA'
         cfg=get_country_config(pais)
-        c.execute(q("SELECT id,COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=(SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1) GROUP BY sorteo_id"))
-        row=c.fetchone()
-        recaudado_usd=float(row[1] or 0) if row else 0.0
+        # Obtener primero el sorteo abierto y luego sumar sus apuestas.
+        # Esto evita que el pozo quede en cero si la subconsulta no encuentra sorteo.
+        c.execute(q("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1"))
+        sorteo_row=c.fetchone()
+        sorteo_id=sorteo_row[0] if sorteo_row else None
+        recaudado_usd=0.0
+        if sorteo_id is not None:
+            c.execute(q("SELECT COALESCE(SUM(monto),0) FROM apuestas WHERE sorteo_id=?"),(sorteo_id,))
+            suma=c.fetchone()
+            recaudado_usd=float(suma[0] or 0) if suma else 0.0
         pozo_usd=recaudado_usd*0.75
         con.close()
         return jsonify({
             "ok":True,
+            "sorteo_id":sorteo_id,
             "recaudado_usd":recaudado_usd,
             "pozo_usd":pozo_usd,
             "pozo_local":usd_to_local(pozo_usd,cfg),
