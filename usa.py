@@ -736,7 +736,7 @@ def apostar_multiple():
         enviar_correo_async(u[1],f"Confirmación de tu apuesta - Sorteo #{sid}",
             f"Hola,\n\nTu apuesta fue registrada correctamente.\n\n"
             f"Moneda: {cfg['currency']}\nAnimales elegidos:\n"+"\n".join(nombres)+
-            f"\n\nTotal apostado: {format_local(total_local,cfg)}\nEl 75% del total recaudado se destina a premios y se reparte en partes iguales entre los usuarios que acierten el animal ganador.¡Gracias por jugar en Globallotery!¡Mucha suerte en el próximo sorteo!\n\nGloballotery")
+            f"\n\nTotal apostado: {format_local(total_local,cfg)}\nEl 75% del total recaudado se destina a premios y se reparte en partes iguales entre los usuarios que acierten el animal ganador.¡Gracias por jugar en Globallotery Mucha suerte.\n\nGloballotery")
         return jsonify({"ok":True,"msg":"Apuesta registrada y correo enviado","total_local":total_local,"total_usd":total_usd,"moneda":cfg['currency']})
     except Exception as e:
         if con:
