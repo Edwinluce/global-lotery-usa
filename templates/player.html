@@ -201,7 +201,10 @@ GAME_CONFIG.premio_multiplicador = {{ premio_multiplicador|tojson }};
 const CURRENCY=GAME_CONFIG.currency;
 const SYMBOL=GAME_CONFIG.symbol;
 const DECIMALS=Number(GAME_CONFIG.decimals||2);
-const LEVELS=(GAME_CONFIG.bet_levels||[]).map(Number);
+const ALL_LEVELS=(GAME_CONFIG.bet_levels||[]).map(Number);
+const WINS_COUNT=Number({{ wins_count|default(0)|tojson }});
+const PLAYER_LEVEL=Number({{ nivel_jugador|default(1)|tojson }});
+const LEVELS=ALL_LEVELS.slice(Math.max(0,PLAYER_LEVEL-1));
 const DEPOSIT_MIN=Number(GAME_CONFIG.deposit_min||0);
 const RETIRAR_MIN=Number(GAME_CONFIG.withdraw_min_usd||15)*Number(GAME_CONFIG.units_per_usd||1);
 function money(v){ return SYMBOL+Number(v||0).toLocaleString('es-CL',{minimumFractionDigits:DECIMALS,maximumFractionDigits:DECIMALS}); }
@@ -211,7 +214,7 @@ let saldoActual=0; try{saldoActual=parseFloat("{{ saldo|default(0) }}")||0;}catc
 let periodoId="{{ sorteo[0] if sorteo else 0 }}";
 document.getElementById('saldo').innerText=money(usdToLocal(saldoActual));
 document.getElementById('paisMoneda').innerText=GAME_CONFIG.name+' · '+CURRENCY;
-document.getElementById('rangoApuesta').innerText='Min '+money(LEVELS[0]);
+document.getElementById('rangoApuesta').innerText='NIVEL '+PLAYER_LEVEL+(PLAYER_LEVEL===3?' · PREMIUM':'')+' · '+WINS_COUNT+' ganada(s) · Mín. '+money(LEVELS[0]);
 const animales=[[1,"Perro","🐶"],[2,"Gato","🐱"],[3,"Ratón","🐭"],[4,"Conejo","🐰"],[5,"Zorro","🦊"],[6,"Tigre","🐯"],[7,"León","🦁"],[8,"Elefante","🐘"],[9,"Mono","🐒"],[10,"Gallina","🐔"],[11,"Gallo","🐓"],[12,"Cerdo","🐷"],[13,"Vaca","🐄"],[14,"Caballo","🐴"],[15,"Alpaca","🦙"],[16,"Vicuña","🦙"],[17,"Cóndor","🦅"],[18,"Oso","🐻"],[19,"Puma","🦁"],[20,"Gallito","🐦"],[21,"Caimán","🐊"],[22,"Serpiente","🐍"],[23,"Rana","🐸"],[24,"Delfin","🐬"],[25,"Guacamayo","🦜"]];
 let monto=LEVELS[0], apuestas={}, misApuestasGuardadas={};
 const grid=document.getElementById('grid');
@@ -252,6 +255,9 @@ async function cargarResultadoPublicado(){
   try{
     const r=await fetch('/api/ultimo-resultado',{cache:'no-store'});
     const d=await r.json();
+    // Si acaba de publicarse el resultado del sorteo en el que estaba jugando,
+    // recarga una sola vez para reflejar las victorias y el nuevo nivel.
+    if(d && d.id!==null && Number(d.id)===Number(periodoId)) { location.reload(); return; }
     const panel=document.getElementById('resultadoPublicado');
     if(!d || d.ganador===null || d.ganador===undefined){panel.style.display='none';return;}
     const g=animales.find(x=>x[0]===Number(d.ganador));

@@ -25,15 +25,15 @@ MI_NOMBRE_BCP = "Globallotery"
 # Las tasas son unidades de moneda local por 1 USD y deben actualizarse
 # periódicamente (o mediante FX_RATES_JSON en Render).
 COUNTRY_CONFIG = {
-    "USA": {"name":"Estados Unidos","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[5,10,20,50],"bet_min":5,"deposit_min":20,"withdraw_min_usd":15},
-    "Perú": {"name":"Perú","currency":"PEN","symbol":"S/","decimals":2,"units_per_usd":3.3983,"bet_levels":[1,2,5,10,20],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
-    "Chile": {"name":"Chile","currency":"CLP","symbol":"$","decimals":0,"units_per_usd":975.27,"bet_levels":[500,1000,2000,5000,10000,20000],"bet_min":500,"deposit_min":5000,"withdraw_min_usd":15},
-    "Colombia": {"name":"Colombia","currency":"COP","symbol":"$","decimals":0,"units_per_usd":3349.63,"bet_levels":[2000,5000,10000,20000,50000],"bet_min":2000,"deposit_min":20000,"withdraw_min_usd":15},
-    "México": {"name":"México","currency":"MXN","symbol":"$","decimals":2,"units_per_usd":18.5,"bet_levels":[10,20,50,100,200],"bet_min":10,"deposit_min":100,"withdraw_min_usd":15},
-    "Ecuador": {"name":"Ecuador","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[1,2,5,10],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
-    "Argentina": {"name":"Argentina","currency":"ARS","symbol":"$","decimals":2,"units_per_usd":1450.0,"bet_levels":[500,1000,2500,5000],"bet_min":500,"deposit_min":10000,"withdraw_min_usd":15},
-    "Bolivia": {"name":"Bolivia","currency":"BOB","symbol":"Bs","decimals":2,"units_per_usd":6.96,"bet_levels":[5,10,20,50],"bet_min":5,"deposit_min":35,"withdraw_min_usd":15},
-    "Venezuela": {"name":"Venezuela","currency":"VES","symbol":"Bs.","decimals":2,"units_per_usd":857.99,"bet_levels":[858,1716,4290,8580,17160],"bet_min":858,"deposit_min":8580,"withdraw_min_usd":15}
+    "USA": {"name":"Estados Unidos","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[5,10,30],"bet_min":5,"deposit_min":20,"withdraw_min_usd":15},
+    "Perú": {"name":"Perú","currency":"PEN","symbol":"S/","decimals":2,"units_per_usd":3.3983,"bet_levels":[1,3,5],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
+    "Chile": {"name":"Chile","currency":"CLP","symbol":"$","decimals":0,"units_per_usd":975.27,"bet_levels":[500,1000,2500],"bet_min":500,"deposit_min":5000,"withdraw_min_usd":15},
+    "Colombia": {"name":"Colombia","currency":"COP","symbol":"$","decimals":0,"units_per_usd":3349.63,"bet_levels":[1000,2000,5000],"bet_min":1000,"deposit_min":20000,"withdraw_min_usd":15},
+    "México": {"name":"México","currency":"MXN","symbol":"$","decimals":2,"units_per_usd":18.5,"bet_levels":[10,15,30],"bet_min":10,"deposit_min":100,"withdraw_min_usd":15},
+    "Ecuador": {"name":"Ecuador","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[1,3,5],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
+    "Argentina": {"name":"Argentina","currency":"ARS","symbol":"$","decimals":2,"units_per_usd":1450.0,"bet_levels":[500,1000,2500],"bet_min":500,"deposit_min":10000,"withdraw_min_usd":15},
+    "Bolivia": {"name":"Bolivia","currency":"BOB","symbol":"Bs","decimals":2,"units_per_usd":6.96,"bet_levels":[2,6,10],"bet_min":2,"deposit_min":35,"withdraw_min_usd":15},
+    "Venezuela": {"name":"Venezuela","currency":"VES","symbol":"Bs.","decimals":2,"units_per_usd":857.99,"bet_levels":[150,300,850],"bet_min":150,"deposit_min":8580,"withdraw_min_usd":15}
 }
 
 try:
@@ -52,6 +52,35 @@ PAISES_ACTIVOS = ["Perú", "Chile", "USA", "Venezuela"]
 
 def get_country_config(country):
     return COUNTRY_CONFIG.get(country, COUNTRY_CONFIG["USA"])
+
+def nivel_por_ganadas(ganadas):
+    """Nivel 1 hasta 1 victoria; nivel 2 con 2-4; Premium desde 5 victorias."""
+    ganadas = max(0, int(ganadas or 0))
+    return 1 if ganadas < 2 else (2 if ganadas < 5 else 3)
+
+def niveles_disponibles(cfg, nivel):
+    niveles = list(cfg.get("bet_levels", []))
+    return niveles[max(0, min(int(nivel or 1), 3)-1):]
+
+def cargar_niveles_apuesta():
+    con = None
+    try:
+        con = db(); c = con.cursor()
+        for pais, cfg in COUNTRY_CONFIG.items():
+            key = "bet_levels:" + pais
+            c.execute(q("SELECT v FROM config WHERE k=?"), (key,))
+            row = c.fetchone()
+            if row:
+                vals = json.loads(row[0])
+                if isinstance(vals, list) and len(vals) == 3 and all(float(v) > 0 for v in vals):
+                    cfg["bet_levels"] = [float(v) for v in vals]
+                    cfg["bet_min"] = cfg["bet_levels"][0]
+        con.close()
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        print("No se pudieron cargar niveles de apuestas:", e)
 
 def local_to_usd(amount_local, config):
     return float(amount_local) / float(config["units_per_usd"])
@@ -248,6 +277,7 @@ def init_db():
     # Migraciones para instalaciones existentes.
     migrations = [
         ("usuarios", "pais", "TEXT DEFAULT 'USA'"),
+        ("usuarios", "wins_count", "INTEGER DEFAULT 0"),
         ("usuarios", "moneda", "TEXT DEFAULT 'USD'"),
         ("usuarios", "terminos_aceptados", "INTEGER DEFAULT 0"),
         ("usuarios", "terminos_version", "TEXT DEFAULT '1.0'"),
@@ -294,6 +324,37 @@ def init_db():
 
 init_db()
 
+def inicializar_victorias_historicas():
+    """Cuenta una sola vez las victorias históricas existentes al activar los niveles."""
+    con = None
+    try:
+        con = db(); c = con.cursor()
+        c.execute(q("SELECT v FROM config WHERE k=?"), ("wins_count_backfill_v1",))
+        if c.fetchone():
+            con.close(); return
+        c.execute(q("""
+            UPDATE usuarios SET wins_count = COALESCE((
+                SELECT COUNT(DISTINCT a.sorteo_id)
+                FROM apuestas a JOIN sorteos s ON s.id=a.sorteo_id
+                WHERE a.usuario_id=usuarios.id
+                  AND a.animal_id=s.animal_ganador
+                  AND s.animal_ganador IS NOT NULL
+                  AND s.estado IN ('PAGADO','FINALIZADO')
+            ),0)
+        """))
+        if is_postgres():
+            c.execute(q("INSERT INTO config (k,v) VALUES (?,?) ON CONFLICT (k) DO NOTHING"), ("wins_count_backfill_v1", "1"))
+        else:
+            c.execute(q("INSERT OR IGNORE INTO config (k,v) VALUES (?,?)"), ("wins_count_backfill_v1", "1"))
+        con.commit(); con.close()
+    except Exception as e:
+        if con:
+            try: con.close()
+            except Exception: pass
+        print("No se pudieron inicializar las victorias históricas:", e)
+
+inicializar_victorias_historicas()
+
 def cargar_tasas_paises():
     """Carga las tasas persistidas en DB y las mantiene en COUNTRY_CONFIG."""
     con=None
@@ -319,6 +380,7 @@ def cargar_tasas_paises():
         print("ERROR CARGANDO TASAS POR PAIS:",e)
 
 cargar_tasas_paises()
+cargar_niveles_apuesta()
 
 def cargar_metodos_pago():
     """Crea métodos manuales iniciales sin sobrescribir cambios hechos por admin."""
@@ -446,6 +508,7 @@ def sortear():
                       (ganador,seed_raw,h,recaud,fondo,margen,'RESULTADO_GENERADO',sid))
 
             for uid,_apostado_usd in ganadores:
+                c.execute(q("UPDATE usuarios SET wins_count=COALESCE(wins_count,0)+1 WHERE id=?"), (uid,))
                 premio=float(premio_por_ganador)
                 c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"),(premio,uid))
                 registrar_movimiento(c, uid, 'PREMIO', premio, f'sorteo:{sid}',
@@ -568,13 +631,15 @@ def player():
         proximo = get_proximo_cierre_global()
         c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado) VALUES (?, 'ABIERTO')"),(proximo.isoformat(),)); con.commit()
         c.execute(q("SELECT * FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); s=c.fetchone()
-    c.execute(q("SELECT saldo,email,pais,moneda FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
+    c.execute(q("SELECT saldo,email,pais,moneda,COALESCE(wins_count,0) FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
     c.execute(q("SELECT * FROM animales")); anims=c.fetchall()
     c.execute(q("SELECT fecha_hora_cierre, animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') ORDER BY id DESC LIMIT 24")); historial=c.fetchall()
     con.close()
     pais=u[2] if u and u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
     saldo_usd=float(u[0] or 0) if u else 0
-    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
+    wins_count=int(u[4] or 0) if u else 0
+    nivel_jugador=nivel_por_ganadas(wins_count)
+    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, wins_count=wins_count, nivel_jugador=nivel_jugador, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
 
 @app.route('/api/configuracion-juego')
 def api_configuracion_juego():
@@ -701,16 +766,18 @@ def apostar_multiple():
         if not isinstance(data,dict) or not data: return jsonify({"ok":False,"msg":"Debes elegir al menos un animal"}),400
         con=db(); c=con.cursor()
         _begin_money_transaction(con)
-        c.execute(q(_for_update("SELECT saldo,email,pais FROM usuarios WHERE id=?")),(session['user'],)); u=c.fetchone()
+        c.execute(q(_for_update("SELECT saldo,email,pais,COALESCE(wins_count,0) FROM usuarios WHERE id=?")),(session['user'],)); u=c.fetchone()
         if not u: con.close(); return jsonify({"ok":False,"msg":"Usuario no encontrado"}),404
         pais=u[2] if u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
+        nivel_jugador=nivel_por_ganadas(u[3])
+        niveles_habilitados=niveles_disponibles(cfg,nivel_jugador)
         apuestas={}; total_usd=0; nombres=[]
-        niveles={round(float(x),2):x for x in cfg['bet_levels']}
+        niveles={round(float(x),2):x for x in niveles_habilitados}
         for animal_id,monto in data.items():
             animal_id=int(animal_id); monto_local=float(monto)
             if animal_id<1 or animal_id>25: return jsonify({"ok":False,"msg":"Animal inválido"}),400
             if round(monto_local,2) not in niveles:
-                return jsonify({"ok":False,"msg":f"Monto no permitido. Usa: {', '.join(format_local(x,cfg) for x in cfg['bet_levels'])}"}),400
+                return jsonify({"ok":False,"msg":f"Monto no permitido para tu nivel {nivel_jugador}. Puedes usar: {', '.join(format_local(x,cfg) for x in niveles_habilitados)}"}),400
             monto_usd=local_to_usd(monto_local,cfg); apuestas[animal_id]=(monto_local,monto_usd); total_usd+=monto_usd
 
         if float(u[0] or 0)<total_usd:
@@ -1171,6 +1238,75 @@ def api_admin_control():
         con.commit(); con.close()
     return jsonify({"ok":True})
 
+@app.route('/api/admin/reset-resultados', methods=['POST'])
+def api_admin_reset_resultados():
+    """Oculta resultados anteriores y prepara una partida limpia sin borrar apuestas ni dinero."""
+    if not require_admin(request):
+        return jsonify({"ok": False, "msg": "Sesión administrativa inválida. Vuelve a iniciar sesión."}), 403
+    if (request.get_json(silent=True) or {}).get("confirmacion") != "RESET":
+        return jsonify({"ok": False, "msg": "Falta la confirmación explícita del RESET."}), 400
+
+    con = None
+    try:
+        con = db()
+        c = con.cursor()
+        _begin_money_transaction(con)
+
+        # No reiniciar si el sorteo abierto ya tiene apuestas: evita dejarlas sin resolver.
+        c.execute(q(_for_update("SELECT id FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")))
+        abierto = c.fetchone()
+        if abierto:
+            sorteo_id = abierto[0]
+            c.execute(q("SELECT COUNT(*) FROM apuestas WHERE sorteo_id=?"), (sorteo_id,))
+            apuestas_activas = int(c.fetchone()[0] or 0)
+            if apuestas_activas > 0:
+                con.rollback()
+                con.close()
+                return jsonify({
+                    "ok": False,
+                    "msg": "No se realizó el RESET: el sorteo actual tiene apuestas. Finaliza ese sorteo primero para proteger las apuestas de los jugadores. No se modificó ningún dato."
+                }), 409
+
+        # En vez de borrar registros, se marcan como reiniciados para que no aparezcan
+        # en el historial público. Se conservan apuestas, saldos y datos de auditoría.
+        c.execute(q("UPDATE sorteos SET estado='RESET' WHERE estado IN ('PAGADO','FINALIZADO') AND animal_ganador IS NOT NULL"))
+        resultados_ocultos = c.rowcount
+
+        # Si existe un sorteo abierto vacío, cerrarlo y crear uno nuevo.
+        if abierto:
+            c.execute(q("UPDATE sorteos SET estado='CERRADO' WHERE id=? AND estado='ABIERTO'"), (abierto[0],))
+
+        proximo = get_proximo_cierre_global()
+        _, tiempo = get_config()
+        if is_postgres():
+            c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO', ?) RETURNING id"),
+                      (proximo.isoformat(), tiempo))
+            nueva_fila = c.fetchone()
+            nuevo_id = nueva_fila[0] if nueva_fila else None
+        else:
+            c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado, tiempo_min) VALUES (?, 'ABIERTO', ?)"),
+                      (proximo.isoformat(), tiempo))
+            nuevo_id = c.lastrowid
+
+        con.commit()
+        con.close()
+        return jsonify({
+            "ok": True,
+            "msg": f"RESET completado. Se ocultaron {resultados_ocultos} resultados anteriores. Apuestas, saldos, recargas y retiros se conservaron.",
+            "resultados_reiniciados": resultados_ocultos,
+            "nuevo_sorteo_id": nuevo_id
+        })
+    except Exception as e:
+        if con:
+            try:
+                con.rollback()
+                con.close()
+            except Exception:
+                pass
+        print("ERROR RESET RESULTADOS:", e)
+        return jsonify({"ok": False, "msg": "No se pudo completar el RESET. No se confirmaron cambios."}), 500
+
+
 @app.route('/api/admin/metodos-pago')
 def api_admin_metodos_pago():
     if not session.get('admin'):
@@ -1272,7 +1408,7 @@ def api_admin_tasas():
         for pais,tasa,actualizado in rows:
             cfg=COUNTRY_CONFIG.get(pais)
             if not cfg: continue
-            data.append({"pais":pais,"nombre":cfg["name"],"moneda":cfg["currency"],"simbolo":cfg["symbol"],"tasa_usd":float(tasa),"actualizado":actualizado or ""})
+            data.append({"pais":pais,"nombre":cfg["name"],"moneda":cfg["currency"],"simbolo":cfg["symbol"],"tasa_usd":float(tasa),"bet_levels":cfg["bet_levels"],"actualizado":actualizado or ""})
         return jsonify({"ok":True,"tasas":data})
     except Exception:
         if con:
@@ -1296,9 +1432,26 @@ def api_admin_tasas_guardar():
             c.execute(q("INSERT INTO config_paises (pais,tasa_usd,actualizado) VALUES (?,?,?) ON CONFLICT (pais) DO UPDATE SET tasa_usd=EXCLUDED.tasa_usd, actualizado=EXCLUDED.actualizado"),(pais,tasa,ahora))
         else:
             c.execute(q("INSERT INTO config_paises (pais,tasa_usd,actualizado) VALUES (?,?,?) ON CONFLICT(pais) DO UPDATE SET tasa_usd=excluded.tasa_usd, actualizado=excluded.actualizado"),(pais,tasa,ahora))
+        levels_in = d.get("bet_levels")
+        if levels_in is not None:
+            try:
+                levels = [float(v) for v in levels_in]
+            except Exception:
+                con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Los tres niveles deben ser números válidos"}),400
+            if len(levels) != 3 or any(v <= 0 or v > 100000000000 for v in levels) or not (levels[0] <= levels[1] <= levels[2]):
+                con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Ingresa 3 montos positivos y en orden: Nivel 1, Nivel 2 y Premium"}),400
+            key = "bet_levels:" + pais
+            encoded = json.dumps(levels)
+            if is_postgres():
+                c.execute(q("INSERT INTO config (k,v) VALUES (?,?) ON CONFLICT (k) DO UPDATE SET v=EXCLUDED.v"), (key, encoded))
+            else:
+                c.execute(q("INSERT INTO config (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v"), (key, encoded))
         con.commit(); con.close(); COUNTRY_CONFIG[pais]["units_per_usd"]=tasa
         cfg=COUNTRY_CONFIG[pais]
-        return jsonify({"ok":True,"msg":f"Tasa actualizada: 1 USD = {format_local(tasa,cfg)}","pais":pais,"tasa_usd":tasa,"actualizado":ahora})
+        if levels_in is not None:
+            COUNTRY_CONFIG[pais]["bet_levels"] = levels
+            COUNTRY_CONFIG[pais]["bet_min"] = levels[0]
+        return jsonify({"ok":True,"msg":f"Configuración actualizada para {cfg['name']}","pais":pais,"tasa_usd":tasa,"bet_levels":cfg["bet_levels"],"actualizado":ahora})
     except Exception as e:
         if con:
             try: con.rollback(); con.close()
