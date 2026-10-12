@@ -957,16 +957,39 @@ def api_historial_global():
 @app.route('/api/historial-sorteos')
 def api_historial_sorteos():
     con=db(); c=con.cursor()
-    c.execute(q("SELECT id,fecha_hora_cierre,animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') AND animal_ganador IS NOT NULL ORDER BY id DESC LIMIT 30"))
+    c.execute(q("""
+        SELECT s.id,s.fecha_hora_cierre,s.animal_ganador,an.nombre,
+               (SELECT COUNT(DISTINCT a.usuario_id)
+                FROM apuestas a
+                WHERE a.sorteo_id=s.id AND a.animal_id=s.animal_ganador)
+        FROM sorteos s
+        LEFT JOIN animales an ON an.id=s.animal_ganador
+        WHERE s.estado IN ('PAGADO','FINALIZADO') AND s.animal_ganador IS NOT NULL
+        ORDER BY s.id DESC LIMIT 30
+    """))
     rows=c.fetchall(); con.close()
-    return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "","animal_ganador":r[2]} for r in rows])
+    return jsonify([{"id":r[0],"fecha":r[1][:16] if r[1] else "",
+                     "animal_ganador":r[2],"nombre_ganador":r[3] or "",
+                     "cantidad_ganadores":int(r[4] or 0)} for r in rows])
 
 @app.route('/api/ultimo-resultado')
 def api_ultimo_resultado():
     con=db(); c=con.cursor()
-    c.execute(q("SELECT id,animal_ganador,estado FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') AND animal_ganador IS NOT NULL ORDER BY id DESC LIMIT 1"))
+    c.execute(q("""
+        SELECT s.id,s.animal_ganador,s.estado,s.fecha_hora_cierre,an.nombre,
+               (SELECT COUNT(DISTINCT a.usuario_id)
+                FROM apuestas a
+                WHERE a.sorteo_id=s.id AND a.animal_id=s.animal_ganador)
+        FROM sorteos s
+        LEFT JOIN animales an ON an.id=s.animal_ganador
+        WHERE s.estado IN ('PAGADO','FINALIZADO') AND s.animal_ganador IS NOT NULL
+        ORDER BY s.id DESC LIMIT 1
+    """))
     r=c.fetchone(); con.close()
-    return jsonify({"id":r[0] if r else None,"ganador":r[1] if r else None,"estado":r[2] if r else None})
+    return jsonify({"id":r[0] if r else None,"ganador":r[1] if r else None,
+                    "estado":r[2] if r else None,"fecha":r[3][:16] if r and r[3] else None,
+                    "nombre_ganador":r[4] if r else None,
+                    "cantidad_ganadores":int(r[5] or 0) if r else 0})
 
 @app.route('/api/mis-apuestas-actuales')
 def api_mis_apuestas_actuales():
