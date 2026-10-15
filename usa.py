@@ -25,15 +25,15 @@ MI_NOMBRE_BCP = "Globallotery"
 # Las tasas son unidades de moneda local por 1 USD y deben actualizarse
 # periódicamente (o mediante FX_RATES_JSON en Render).
 COUNTRY_CONFIG = {
-    "USA": {"name":"Estados Unidos","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[5,10,30],"bet_min":5,"deposit_min":20,"withdraw_min_usd":15},
-    "Perú": {"name":"Perú","currency":"PEN","symbol":"S/","decimals":2,"units_per_usd":3.3983,"bet_levels":[1,3,5],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
-    "Chile": {"name":"Chile","currency":"CLP","symbol":"$","decimals":0,"units_per_usd":975.27,"bet_levels":[500,1000,2500],"bet_min":500,"deposit_min":5000,"withdraw_min_usd":15},
-    "Colombia": {"name":"Colombia","currency":"COP","symbol":"$","decimals":0,"units_per_usd":3349.63,"bet_levels":[1000,2000,5000],"bet_min":1000,"deposit_min":20000,"withdraw_min_usd":15},
-    "México": {"name":"México","currency":"MXN","symbol":"$","decimals":2,"units_per_usd":18.5,"bet_levels":[10,15,30],"bet_min":10,"deposit_min":100,"withdraw_min_usd":15},
-    "Ecuador": {"name":"Ecuador","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[1,3,5],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
-    "Argentina": {"name":"Argentina","currency":"ARS","symbol":"$","decimals":2,"units_per_usd":1450.0,"bet_levels":[500,1000,2500],"bet_min":500,"deposit_min":10000,"withdraw_min_usd":15},
-    "Bolivia": {"name":"Bolivia","currency":"BOB","symbol":"Bs","decimals":2,"units_per_usd":6.96,"bet_levels":[2,6,10],"bet_min":2,"deposit_min":35,"withdraw_min_usd":15},
-    "Venezuela": {"name":"Venezuela","currency":"VES","symbol":"Bs.","decimals":2,"units_per_usd":857.99,"bet_levels":[150,300,850],"bet_min":150,"deposit_min":8580,"withdraw_min_usd":15}
+    "USA": {"name":"Estados Unidos","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[5,10,15,20,30,50,100,200],"bet_min":5,"deposit_min":20,"withdraw_min_usd":15},
+    "Perú": {"name":"Perú","currency":"PEN","symbol":"S/","decimals":2,"units_per_usd":3.3983,"bet_levels":[1,3,5,10,15,20,50],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
+    "Chile": {"name":"Chile","currency":"CLP","symbol":"$","decimals":0,"units_per_usd":975.27,"bet_levels":[500,1000,1500,2000,5000,10000,15000],"bet_min":500,"deposit_min":5000,"withdraw_min_usd":15},
+    "Colombia": {"name":"Colombia","currency":"COP","symbol":"$","decimals":0,"units_per_usd":3349.63,"bet_levels":[1000,1500,2000,5000,10000,15000],"bet_min":1000,"deposit_min":20000,"withdraw_min_usd":15},
+    "México": {"name":"México","currency":"MXN","symbol":"$","decimals":0,"units_per_usd":18.5,"bet_levels":[10,15,20,30,50,100,350],"bet_min":10,"deposit_min":100,"withdraw_min_usd":15},
+    "Ecuador": {"name":"Ecuador","currency":"USD","symbol":"$","decimals":2,"units_per_usd":1.0,"bet_levels":[1,3,5,10,15,20,30],"bet_min":1,"deposit_min":10,"withdraw_min_usd":15},
+    "Argentina": {"name":"Argentina","currency":"ARS","symbol":"$","decimals":0,"units_per_usd":1450.0,"bet_levels":[500,1000,2500,4000,7000,10000,15000],"bet_min":500,"deposit_min":10000,"withdraw_min_usd":15},
+    "Bolivia": {"name":"Bolivia","currency":"BOB","symbol":"Bs","decimals":0,"units_per_usd":6.96,"bet_levels":[2,4,6,10,15,20,40],"bet_min":2,"deposit_min":35,"withdraw_min_usd":15},
+    "Venezuela": {"name":"Venezuela","currency":"VES","symbol":"Bs","decimals":0,"units_per_usd":857.99,"bet_levels":[150,200,300,500,700,1000,2000],"bet_min":150,"deposit_min":8580,"withdraw_min_usd":15}
 }
 
 try:
@@ -48,7 +48,7 @@ PREMIO_MULTIPLICADOR = 25
 
 # Países habilitados actualmente para operar la plataforma.
 # El resto de COUNTRY_CONFIG queda preparado para futuras expansiones.
-PAISES_ACTIVOS = ["Perú", "Chile", "USA", "Venezuela"]
+PAISES_ACTIVOS = ["Perú", "Chile", "USA", "Venezuela", "Colombia", "México", "Argentina", "Ecuador", "Bolivia"]
 
 def get_country_config(country):
     return COUNTRY_CONFIG.get(country, COUNTRY_CONFIG["USA"])
@@ -70,24 +70,9 @@ def niveles_disponibles(cfg, nivel):
     return [niveles[nivel-1]]
 
 def cargar_niveles_apuesta():
-    con = None
-    try:
-        con = db(); c = con.cursor()
-        for pais, cfg in COUNTRY_CONFIG.items():
-            key = "bet_levels:" + pais
-            c.execute(q("SELECT v FROM config WHERE k=?"), (key,))
-            row = c.fetchone()
-            if row:
-                vals = json.loads(row[0])
-                if isinstance(vals, list) and len(vals) == 3 and all(float(v) > 0 for v in vals):
-                    cfg["bet_levels"] = [float(v) for v in vals]
-                    cfg["bet_min"] = cfg["bet_levels"][0]
-        con.close()
-    except Exception as e:
-        if con:
-            try: con.close()
-            except Exception: pass
-        print("No se pudieron cargar niveles de apuestas:", e)
+    """Los importes permitidos por país son los definidos en COUNTRY_CONFIG."""
+    return
+
 
 def local_to_usd(amount_local, config):
     return float(amount_local) / float(config["units_per_usd"])
@@ -781,27 +766,23 @@ def apostar_multiple():
     try:
         data=(request.json or {}).get('apuestas',{})
         if not isinstance(data,dict) or not data: return jsonify({"ok":False,"msg":"Debes elegir al menos un animal"}),400
+        if len(data) > 10: return jsonify({"ok":False,"msg":"Solo puedes elegir un máximo de 10 animales por jugada."}),400
         con=db(); c=con.cursor()
         _begin_money_transaction(con)
         c.execute(q(_for_update("SELECT saldo,email,pais,COALESCE(wins_count,0),COALESCE(level2_wins,0) FROM usuarios WHERE id=?")),(session['user'],)); u=c.fetchone()
         if not u: con.close(); return jsonify({"ok":False,"msg":"Usuario no encontrado"}),404
         pais=u[2] if u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
-        nivel_jugador=nivel_por_ganadas(u[3], u[4])
-        niveles_habilitados=niveles_disponibles(cfg,nivel_jugador)
-        niveles_cfg=list(cfg.get("bet_levels", []))
-        if len(niveles_cfg) < 3:
-            return jsonify({"ok":False,"msg":"La configuración de niveles de apuesta está incompleta"}),500
-        importe_fijo=float(niveles_cfg[nivel_jugador-1])
-        importe_minimo_nivel3=float(niveles_cfg[2])
+        niveles_cfg=[round_local_amount(float(v),cfg) for v in cfg.get("bet_levels", [])]
+        if not niveles_cfg:
+            return jsonify({"ok":False,"msg":"No hay importes configurados para este país"}),500
         apuestas={}; total_usd=0; nombres=[]
         for animal_id,monto in data.items():
             animal_id=int(animal_id); monto_local=float(monto)
             if animal_id<1 or animal_id>25: return jsonify({"ok":False,"msg":"Animal inválido"}),400
-            if nivel_jugador < 3 and round(monto_local,2) != round(importe_fijo,2):
-                return jsonify({"ok":False,"msg":f"En el nivel {nivel_jugador}, cada animal cuesta {format_local(importe_fijo,cfg)}."}),400
-            if nivel_jugador == 3 and round(monto_local,2) < round(importe_minimo_nivel3,2):
-                return jsonify({"ok":False,"msg":f"En el nivel 3, el mínimo por animal es {format_local(importe_minimo_nivel3,cfg)}."}),400
             monto_local=round_local_amount(monto_local,cfg)
+            if not any(abs(monto_local-v) < 0.0001 for v in niveles_cfg):
+                opciones=", ".join(format_local(v,cfg) for v in niveles_cfg)
+                return jsonify({"ok":False,"msg":f"Importe no permitido. Elige uno de estos valores: {opciones}."}),400
             monto_usd=local_to_usd(monto_local,cfg); apuestas[animal_id]=(monto_local,monto_usd); total_usd+=monto_usd
 
         if float(u[0] or 0)<total_usd:
@@ -1456,25 +1437,10 @@ def api_admin_tasas_guardar():
             c.execute(q("INSERT INTO config_paises (pais,tasa_usd,actualizado) VALUES (?,?,?) ON CONFLICT (pais) DO UPDATE SET tasa_usd=EXCLUDED.tasa_usd, actualizado=EXCLUDED.actualizado"),(pais,tasa,ahora))
         else:
             c.execute(q("INSERT INTO config_paises (pais,tasa_usd,actualizado) VALUES (?,?,?) ON CONFLICT(pais) DO UPDATE SET tasa_usd=excluded.tasa_usd, actualizado=excluded.actualizado"),(pais,tasa,ahora))
-        levels_in = d.get("bet_levels")
-        if levels_in is not None:
-            try:
-                levels = [float(v) for v in levels_in]
-            except Exception:
-                con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Los tres niveles deben ser números válidos"}),400
-            if len(levels) != 3 or any(v <= 0 or v > 100000000000 for v in levels) or not (levels[0] <= levels[1] <= levels[2]):
-                con.rollback(); con.close(); return jsonify({"ok":False,"msg":"Ingresa 3 montos positivos y en orden: Nivel 1, Nivel 2 y Premium"}),400
-            key = "bet_levels:" + pais
-            encoded = json.dumps(levels)
-            if is_postgres():
-                c.execute(q("INSERT INTO config (k,v) VALUES (?,?) ON CONFLICT (k) DO UPDATE SET v=EXCLUDED.v"), (key, encoded))
-            else:
-                c.execute(q("INSERT INTO config (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v"), (key, encoded))
+        # Los importes de apuesta por país son fijos en COUNTRY_CONFIG y no se editan desde este endpoint.
+        levels = COUNTRY_CONFIG[pais]["bet_levels"]
         con.commit(); con.close(); COUNTRY_CONFIG[pais]["units_per_usd"]=tasa
         cfg=COUNTRY_CONFIG[pais]
-        if levels_in is not None:
-            COUNTRY_CONFIG[pais]["bet_levels"] = levels
-            COUNTRY_CONFIG[pais]["bet_min"] = levels[0]
         return jsonify({"ok":True,"msg":f"Configuración actualizada para {cfg['name']}","pais":pais,"tasa_usd":tasa,"bet_levels":cfg["bet_levels"],"actualizado":ahora})
     except Exception as e:
         if con:

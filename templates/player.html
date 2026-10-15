@@ -215,24 +215,17 @@ let saldoActual=0; try{saldoActual=parseFloat("{{ saldo|default(0) }}")||0;}catc
 let periodoId="{{ sorteo[0] if sorteo else 0 }}";
 document.getElementById('saldo').innerText=money(usdToLocal(saldoActual));
 document.getElementById('paisMoneda').innerText=GAME_CONFIG.name+' · '+CURRENCY;
-document.getElementById('rangoApuesta').innerText='NIVEL '+PLAYER_LEVEL+(PLAYER_LEVEL===3?' · PREMIUM':'')+' · '+(PLAYER_LEVEL===2?LEVEL2_WINS+'/10 victorias del nivel 2':WINS_COUNT+' victoria(s) totales')+' · '+(PLAYER_LEVEL===3?'Mín. ':'Fijo: ')+money(LEVELS[PLAYER_LEVEL-1]);
+document.getElementById('rangoApuesta').innerText='Máximo 10 animales · elige el importe por animal';
 const animales=[[1,"Perro","🐶"],[2,"Gato","🐱"],[3,"Ratón","🐭"],[4,"Conejo","🐰"],[5,"Zorro","🦊"],[6,"Tigre","🐯"],[7,"León","🦁"],[8,"Elefante","🐘"],[9,"Mono","🐒"],[10,"Gallina","🐔"],[11,"Gallo","🐓"],[12,"Cerdo","🐷"],[13,"Vaca","🐄"],[14,"Caballo","🐴"],[15,"Alpaca","🦙"],[16,"Vicuña","🦙"],[17,"Cóndor","🦅"],[18,"Oso","🐻"],[19,"Puma","🦁"],[20,"Gallito","🐦"],[21,"Caimán","🐊"],[22,"Serpiente","🐍"],[23,"Rana","🐸"],[24,"Delfin","🐬"],[25,"Guacamayo","🦜"]];
-let monto=Number(LEVELS[PLAYER_LEVEL-1]||LEVELS[0]||0), apuestas={}, misApuestasGuardadas={};
+let monto=Number(LEVELS[0]||0), apuestas={}, misApuestasGuardadas={};
 const grid=document.getElementById('grid');
-animales.forEach(a=>{ let d=document.createElement('div'); d.className='card'; d.dataset.id=a[0]; d.innerHTML=`<div class="num">${String(a[0]).padStart(2,'0')}</div><div style="font-size:36px">${a[2]}</div><div class="name">${a[1]}</div>`; d.onclick=()=>{ if(apuestas[a[0]]){delete apuestas[a[0]];d.classList.remove('selected')}else{apuestas[a[0]]=monto;d.classList.add('selected')}calc()}; grid.appendChild(d); });
+animales.forEach(a=>{ let d=document.createElement('div'); d.className='card'; d.dataset.id=a[0]; d.innerHTML=`<div class="num">${String(a[0]).padStart(2,'0')}</div><div style="font-size:36px">${a[2]}</div><div class="name">${a[1]}</div>`; d.onclick=()=>{ if(apuestas[a[0]]){delete apuestas[a[0]];d.classList.remove('selected')}else{if(Object.keys(apuestas).length>=10){alert('Puedes elegir un máximo de 10 animales por jugada.');return;}apuestas[a[0]]=monto;d.classList.add('selected')}calc()}; grid.appendChild(d); });
 const montoBox=document.getElementById('montoPorApuesta');
-if(PLAYER_LEVEL < 3){
-  const v=Number(LEVELS[PLAYER_LEVEL-1]||LEVELS[0]||0);
-  const b=document.createElement('button'); b.type='button'; b.classList.add('active'); b.textContent=money(v)+' · fijo'; b.disabled=true; montoBox.appendChild(b); monto=v;
-}else{
-  const min=Number(LEVELS[2]||0);
-  const label=document.createElement('div'); label.style.cssText='width:100%;font-size:12px;color:#d4a853;margin:4px 0'; label.textContent='Elige tu monto por animal (mínimo '+money(min)+')'; montoBox.appendChild(label);
-  const inp=document.createElement('input'); inp.type='number'; inp.min=String(min); inp.step=String(DECIMALS===0?1:0.01); inp.value=String(min); inp.style.cssText='width:100%;padding:10px;border-radius:8px;border:1px solid #d4a853;background:#10271e;color:white;font-size:16px'; inp.setAttribute('aria-label','Monto por animal'); montoBox.appendChild(inp); monto=min;
-  inp.addEventListener('input',()=>{const v=Number(inp.value);if(v>=min){monto=v;for(let k in apuestas)apuestas[k]=monto;calc()}});
-}
+const montoLabel=document.createElement('div'); montoLabel.style.cssText='width:100%;font-size:12px;color:#d4a853;margin:4px 0'; montoLabel.textContent='Selecciona el valor de cada animal'; montoBox.appendChild(montoLabel);
+LEVELS.forEach((v,i)=>{const b=document.createElement('button');b.type='button';b.className=i===0?'active':'';b.textContent=money(v);b.onclick=()=>{monto=Number(v);montoBox.querySelectorAll('button').forEach(x=>x.classList.remove('active'));b.classList.add('active')};montoBox.appendChild(b)});
 function calc(){ let t=Object.values(apuestas).reduce((a,b)=>a+Number(b),0); document.getElementById('total').innerText=money(t); return t; }
 document.getElementById('btn-limpiar').onclick=()=>{apuestas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc()};
-document.getElementById('btn-confirmar').onclick=()=>{ let total=calc(); if(PLAYER_LEVEL===3 && monto<Number(LEVELS[2]||0))return alert('El monto mínimo por animal en el nivel 3 es '+money(LEVELS[2])); if(total<=0)return alert('Elige un animal'); let totalUsd=localToUsd(total); if(saldoActual<totalUsd){alert('Saldo insuficiente');abrirRecarga();return;} misApuestasGuardadas={...apuestas}; fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apuestas})}).then(r=>r.json()).then(d=>{if(d.ok){saldoActual-=Number(d.total_usd||totalUsd);document.getElementById('saldo').innerText=money(usdToLocal(saldoActual));cargarPozo();mostrarSalaConteo()}else alert(d.msg||'No se pudo registrar')}); };
+document.getElementById('btn-confirmar').onclick=()=>{ let total=calc(); if(Object.keys(apuestas).length>10)return alert('Puedes elegir un máximo de 10 animales por jugada.'); if(total<=0)return alert('Elige un animal'); let totalUsd=localToUsd(total); if(saldoActual<totalUsd){alert('Saldo insuficiente');abrirRecarga();return;} misApuestasGuardadas={...apuestas}; fetch('/api/apostar-multiple',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apuestas})}).then(r=>r.json()).then(d=>{if(d.ok){saldoActual-=Number(d.total_usd||totalUsd);document.getElementById('saldo').innerText=money(usdToLocal(saldoActual));cargarPozo();mostrarSalaConteo()}else alert(d.msg||'No se pudo registrar')}); };
 function mostrarSalaConteo(){ let html='';let total=0;for(let id in misApuestasGuardadas){let a=animales.find(x=>x[0]==id);if(a){html+=`<div>${a[2]} ${a[1]} ${money(misApuestasGuardadas[id])}</div>`;total+=Number(misApuestasGuardadas[id])}}document.getElementById('listaElegidos').innerHTML=html;document.getElementById('totalSala').innerText=money(total);document.getElementById('modalSala').style.display='flex'; }
 function mostrarResultado(){
   document.getElementById('modalSala').style.display='none';
