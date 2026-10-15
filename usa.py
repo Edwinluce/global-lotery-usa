@@ -53,14 +53,21 @@ PAISES_ACTIVOS = ["Perú", "Chile", "USA", "Venezuela"]
 def get_country_config(country):
     return COUNTRY_CONFIG.get(country, COUNTRY_CONFIG["USA"])
 
-def nivel_por_ganadas(ganadas):
-    """Nivel 1 hasta 1 victoria; nivel 2 con 2-4; Premium desde 5 victorias."""
+def nivel_por_ganadas(ganadas, ganadas_nivel2=0):
+    """Nivel 1 hasta 2 victorias totales; nivel 2 hasta 10 victorias logradas en ese nivel."""
     ganadas = max(0, int(ganadas or 0))
-    return 1 if ganadas < 2 else (2 if ganadas < 5 else 3)
+    ganadas_nivel2 = max(0, int(ganadas_nivel2 or 0))
+    if ganadas < 2:
+        return 1
+    return 3 if ganadas_nivel2 >= 10 else 2
 
 def niveles_disponibles(cfg, nivel):
+    """Niveles 1 y 2 tienen importe fijo; nivel 3 usa el tercer importe como mínimo."""
     niveles = list(cfg.get("bet_levels", []))
-    return niveles[max(0, min(int(nivel or 1), 3)-1):]
+    if not niveles:
+        return []
+    nivel = max(1, min(int(nivel or 1), 3))
+    return [niveles[nivel-1]]
 
 def cargar_niveles_apuesta():
     con = None
@@ -278,6 +285,7 @@ def init_db():
     migrations = [
         ("usuarios", "pais", "TEXT DEFAULT 'USA'"),
         ("usuarios", "wins_count", "INTEGER DEFAULT 0"),
+        ("usuarios", "level2_wins", "INTEGER DEFAULT 0"),
         ("usuarios", "moneda", "TEXT DEFAULT 'USD'"),
         ("usuarios", "terminos_aceptados", "INTEGER DEFAULT 0"),
         ("usuarios", "terminos_version", "TEXT DEFAULT '1.0'"),
@@ -508,6 +516,14 @@ def sortear():
                       (ganador,seed_raw,h,recaud,fondo,margen,'RESULTADO_GENERADO',sid))
 
             for uid,_apostado_usd in ganadores:
+                # Solo cuentan para el ascenso al nivel 3 las victorias obtenidas
+                # mientras el usuario estaba en el nivel 2 (ya tenía 2 victorias).
+                c.execute(q("SELECT COALESCE(wins_count,0),COALESCE(level2_wins,0) FROM usuarios WHERE id=?"), (uid,))
+                progreso = c.fetchone() or (0, 0)
+                wins_antes = int(progreso[0] or 0)
+                wins_nivel2 = int(progreso[1] or 0)
+                if wins_antes >= 2 and wins_nivel2 < 10:
+                    c.execute(q("UPDATE usuarios SET level2_wins=COALESCE(level2_wins,0)+1 WHERE id=?"), (uid,))
                 c.execute(q("UPDATE usuarios SET wins_count=COALESCE(wins_count,0)+1 WHERE id=?"), (uid,))
                 premio=float(premio_por_ganador)
                 c.execute(q("UPDATE usuarios SET saldo=saldo+? WHERE id=?"),(premio,uid))
@@ -631,15 +647,16 @@ def player():
         proximo = get_proximo_cierre_global()
         c.execute(q("INSERT INTO sorteos (fecha_hora_cierre, estado) VALUES (?, 'ABIERTO')"),(proximo.isoformat(),)); con.commit()
         c.execute(q("SELECT * FROM sorteos WHERE estado='ABIERTO' ORDER BY id DESC LIMIT 1")); s=c.fetchone()
-    c.execute(q("SELECT saldo,email,pais,moneda,COALESCE(wins_count,0) FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
+    c.execute(q("SELECT saldo,email,pais,moneda,COALESCE(wins_count,0),COALESCE(level2_wins,0) FROM usuarios WHERE id=?"), (session['user'],)); u=c.fetchone()
     c.execute(q("SELECT * FROM animales")); anims=c.fetchall()
     c.execute(q("SELECT fecha_hora_cierre, animal_ganador FROM sorteos WHERE estado IN ('PAGADO','FINALIZADO') ORDER BY id DESC LIMIT 24")); historial=c.fetchall()
     con.close()
     pais=u[2] if u and u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
     saldo_usd=float(u[0] or 0) if u else 0
     wins_count=int(u[4] or 0) if u else 0
-    nivel_jugador=nivel_por_ganadas(wins_count)
-    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, wins_count=wins_count, nivel_jugador=nivel_jugador, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
+    wins_nivel2=int(u[5] or 0) if u else 0
+    nivel_jugador=nivel_por_ganadas(wins_count, wins_nivel2)
+    return render_template('player.html', sorteo=s, animales=anims, historial=historial, saldo=saldo_usd, saldo_local=usd_to_local(saldo_usd,cfg), email=u[1] if u else '', pais=pais, moneda=cfg['currency'], currency_config=cfg, wins_count=wins_count, wins_nivel2=wins_nivel2, nivel_jugador=nivel_jugador, premio_multiplicador=PREMIO_MULTIPLICADOR, bcp_cuenta=MI_CUENTA_BCP, bcp_cci=MI_CCI_BCP, bcp_link=MI_LINK_IZIPAY, bcp_nombre=MI_NOMBRE_BCP)
 
 @app.route('/api/configuracion-juego')
 def api_configuracion_juego():
@@ -766,18 +783,25 @@ def apostar_multiple():
         if not isinstance(data,dict) or not data: return jsonify({"ok":False,"msg":"Debes elegir al menos un animal"}),400
         con=db(); c=con.cursor()
         _begin_money_transaction(con)
-        c.execute(q(_for_update("SELECT saldo,email,pais,COALESCE(wins_count,0) FROM usuarios WHERE id=?")),(session['user'],)); u=c.fetchone()
+        c.execute(q(_for_update("SELECT saldo,email,pais,COALESCE(wins_count,0),COALESCE(level2_wins,0) FROM usuarios WHERE id=?")),(session['user'],)); u=c.fetchone()
         if not u: con.close(); return jsonify({"ok":False,"msg":"Usuario no encontrado"}),404
         pais=u[2] if u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
-        nivel_jugador=nivel_por_ganadas(u[3])
+        nivel_jugador=nivel_por_ganadas(u[3], u[4])
         niveles_habilitados=niveles_disponibles(cfg,nivel_jugador)
+        niveles_cfg=list(cfg.get("bet_levels", []))
+        if len(niveles_cfg) < 3:
+            return jsonify({"ok":False,"msg":"La configuración de niveles de apuesta está incompleta"}),500
+        importe_fijo=float(niveles_cfg[nivel_jugador-1])
+        importe_minimo_nivel3=float(niveles_cfg[2])
         apuestas={}; total_usd=0; nombres=[]
-        niveles={round(float(x),2):x for x in niveles_habilitados}
         for animal_id,monto in data.items():
             animal_id=int(animal_id); monto_local=float(monto)
             if animal_id<1 or animal_id>25: return jsonify({"ok":False,"msg":"Animal inválido"}),400
-            if round(monto_local,2) not in niveles:
-                return jsonify({"ok":False,"msg":f"Monto no permitido para tu nivel {nivel_jugador}. Puedes usar: {', '.join(format_local(x,cfg) for x in niveles_habilitados)}"}),400
+            if nivel_jugador < 3 and round(monto_local,2) != round(importe_fijo,2):
+                return jsonify({"ok":False,"msg":f"En el nivel {nivel_jugador}, cada animal cuesta {format_local(importe_fijo,cfg)}."}),400
+            if nivel_jugador == 3 and round(monto_local,2) < round(importe_minimo_nivel3,2):
+                return jsonify({"ok":False,"msg":f"En el nivel 3, el mínimo por animal es {format_local(importe_minimo_nivel3,cfg)}."}),400
+            monto_local=round_local_amount(monto_local,cfg)
             monto_usd=local_to_usd(monto_local,cfg); apuestas[animal_id]=(monto_local,monto_usd); total_usd+=monto_usd
 
         if float(u[0] or 0)<total_usd:
