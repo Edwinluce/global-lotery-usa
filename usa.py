@@ -888,11 +888,34 @@ def solicitar_retiro():
     if 'user' not in session: return jsonify({"ok":False,"msg":"No logueado"}),401
     con=None
     try:
-        data=request.get_json() or {}; monto_local=validar_monto(data.get("monto",0),100000000); destino=str(data.get("banco_info",data.get("yape",""))).strip()
-        if len(destino)>150: return jsonify({"ok":False,"msg":"Dato de retiro demasiado largo"}),400
-        if not destino: return jsonify({"ok":False,"msg":"Indica la cuenta o medio de retiro"}),400
+        data=request.get_json() or {}; monto_local=validar_monto(data.get("monto",0),100000000)
+        metodo=str(data.get("metodo_retiro","")).strip()
+        titular=str(data.get("titular_retiro","")).strip()
+        documento=str(data.get("documento_retiro","")).strip()
+        tipo_cuenta=str(data.get("tipo_cuenta_retiro","")).strip()
+        cuenta=str(data.get("cuenta_retiro","")).strip()
+        if any(len(v)>150 for v in (metodo,titular,documento,tipo_cuenta,cuenta)):
+            return jsonify({"ok":False,"msg":"Uno de los datos de retiro es demasiado largo"}),400
+        if not all((metodo,titular,documento,cuenta)):
+            return jsonify({"ok":False,"msg":"Completa el banco o método, titular, documento y cuenta/teléfono"}),400
         con=db(); c=con.cursor(); c.execute(q("SELECT saldo,email,pais FROM usuarios WHERE id=?"),(session['user'],)); u=c.fetchone()
-        pais=u[2] if u and u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais); min_local=round_local_amount(usd_to_local(cfg['withdraw_min_usd'],cfg),cfg)
+        pais=u[2] if u and u[2] in COUNTRY_CONFIG else 'USA'; cfg=get_country_config(pais)
+        allowed_methods={
+            'Chile':['Banco Estado','Tempo','Otro banco de Chile'],
+            'Perú':['BCP','Yape','Otro banco de Perú'],
+            'Colombia':['Bancolombia','Nequi','Davivienda','Culqi','Otro banco de Colombia'],
+            'Venezuela':['Banco de Venezuela','Pago Móvil','Otro banco de Venezuela'],
+            'USA':['Zelle','PayPal','Transferencia bancaria'],
+            'México':['BBVA México','Banco Azteca','Mercado Pago','Otro banco de México'],
+            'Argentina':['Banco Nación','Mercado Pago','Otro banco de Argentina'],
+            'Ecuador':['Banco Pichincha','Banco Guayaquil','Otro banco de Ecuador'],
+            'Bolivia':['Banco Unión','Banco Nacional de Bolivia (BNB)','Otro banco de Bolivia']
+        }
+        if metodo not in allowed_methods.get(pais,allowed_methods['USA']):
+            con.close(); return jsonify({"ok":False,"msg":"El método de retiro no corresponde al país de tu cuenta"}),400
+        destino=f"Método: {metodo} | Titular: {titular} | Documento: {documento} | Tipo de cuenta: {tipo_cuenta or 'No especificado'} | Cuenta/teléfono/identificador: {cuenta}"
+        if len(destino)>700: con.close(); return jsonify({"ok":False,"msg":"Los datos de retiro son demasiado largos"}),400
+        min_local=round_local_amount(usd_to_local(cfg['withdraw_min_usd'],cfg),cfg)
         if monto_local < min_local: con.close(); return jsonify({"ok":False,"msg":f"El retiro mínimo es {format_local(min_local,cfg)}"}),400
         monto_usd=local_to_usd(monto_local,cfg)
         if not u or float(u[0] or 0)<monto_usd: con.close(); return jsonify({"ok":False,"msg":f"Saldo insuficiente: {format_local(usd_to_local(float(u[0] or 0),cfg),cfg)}"}),400

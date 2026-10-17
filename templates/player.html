@@ -180,15 +180,24 @@ async function verHistorial(){
 
 <div id="modalRetiro" class="modal-recarga">
 <div class="box-recarga">
-<h3>💸 Request Withdrawal</h3>
-<small class="sub">Available saldo: <b id="saldoModalRetiro" style="color:#ffcc4d">$ 0.00</b></small>
-<div class="label-rec">💵 RETIRAR AMOUNT</div>
+<h3>💸 Solicitar retiro</h3>
+<small class="sub">Saldo disponible: <b id="saldoModalRetiro" style="color:#ffcc4d">$ 0.00</b></small>
+<div class="label-rec">💵 MONTO DEL RETIRO</div>
 <div class="montos" id="montosRetiroBtn"></div>
 <input id="montoRetiroCustom" type="number" class="input-card">
-<div class="label-rec">🏦 WHERE TO SEND?</div>
-<input id="bancoRetiro" type="text" class="input-card" placeholder="Ex: Zelle 305-xxx - John Doe">
-<div style="background:#111;border-radius:10px;padding:10px;font-size:11px;color:#aaa;margin-top:8px">⚠️ Deducted when admin APPROVES.</div>
-<button type="button" class="btn-pagar" id="btnEnviarRetiro" style="background:linear-gradient(180deg,#ff4757,#8a1a1a)">💸 Request Withdrawal - $ 20</button>
+<div class="label-rec">🏦 DATOS PARA RECIBIR EL RETIRO</div>
+<label for="metodoRetiro" class="sub">Banco o método de pago</label>
+<select id="metodoRetiro" class="input-card" required></select>
+<label for="titularRetiro" class="sub">Nombre completo del titular</label>
+<input id="titularRetiro" type="text" class="input-card" maxlength="100" placeholder="Nombre y apellido" autocomplete="name" required>
+<label for="documentoRetiro" class="sub" id="documentoRetiroLabel">Documento de identidad</label>
+<input id="documentoRetiro" type="text" class="input-card" maxlength="60" placeholder="Número de documento" required>
+<label for="tipoCuentaRetiro" class="sub">Tipo de cuenta (si corresponde)</label>
+<select id="tipoCuentaRetiro" class="input-card"><option value="">No aplica / No especificado</option><option>Cuenta corriente</option><option>Cuenta vista</option><option>Cuenta de ahorro</option><option>Billetera digital</option></select>
+<label for="cuentaRetiro" class="sub" id="cuentaRetiroLabel">Número de cuenta, teléfono o identificador</label>
+<input id="cuentaRetiro" type="text" class="input-card" maxlength="120" placeholder="Datos de la cuenta o medio de pago" required>
+<div style="background:#111;border-radius:10px;padding:10px;font-size:11px;color:#aaa;margin-top:8px">Verifica que los datos sean correctos. La solicitud quedará pendiente de revisión por administración.</div>
+<button type="button" class="btn-pagar" id="btnEnviarRetiro" style="background:linear-gradient(180deg,#ff4757,#8a1a1a)">💸 Solicitar retiro</button>
 <button type="button" class="btn-cancel" onclick="cerrarRetiro()">Cancel</button>
 <div id="listaMisRetiros" style="margin-top:12px;font-size:11px"></div>
 </div>
@@ -437,10 +446,28 @@ document.getElementById('btnPagar').onclick=()=>{
  fetch('/api/recarga-bcp',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{alert(d.msg);if(d.ok){cerrarRecarga();document.getElementById('operacion').value='';document.getElementById('cardNombre').value='';document.getElementById('voucherFile').value='';}document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante'}).catch(()=>{alert('No se pudo enviar la solicitud');document.getElementById('btnPagar').innerText='✅ Ya realicé el pago — Enviar comprobante'});
 };
 
+const METODOS_RETIRO={
+ 'Chile':['Banco Estado','Tempo','Otro banco de Chile'],
+ 'Perú':['BCP','Yape','Otro banco de Perú'],
+ 'Colombia':['Bancolombia','Nequi','Davivienda','Culqi','Otro banco de Colombia'],
+ 'Venezuela':['Banco de Venezuela','Pago Móvil','Otro banco de Venezuela'],
+ 'Estados Unidos':['Zelle','PayPal','Transferencia bancaria'],
+ 'México':['BBVA México','Banco Azteca','Mercado Pago','Otro banco de México'],
+ 'Argentina':['Banco Nación','Mercado Pago','Otro banco de Argentina'],
+ 'Ecuador':['Banco Pichincha','Banco Guayaquil','Otro banco de Ecuador'],
+ 'Bolivia':['Banco Unión','Banco Nacional de Bolivia (BNB)','Otro banco de Bolivia']
+};
+const paisRetiro=GAME_CONFIG.name||'Estados Unidos';
+const metodoRetiroEl=document.getElementById('metodoRetiro');
+(METODOS_RETIRO[paisRetiro]||METODOS_RETIRO['Estados Unidos']).forEach((metodo,i)=>{let o=document.createElement('option');o.value=metodo;o.textContent=metodo;metodoRetiroEl.appendChild(o)});
+const docLabels={'Chile':'RUT','Perú':'DNI / documento','Colombia':'Cédula','Venezuela':'Cédula de identidad','Estados Unidos':'Documento de identidad (si corresponde)','México':'CURP / documento','Argentina':'DNI / CUIL','Ecuador':'Cédula','Bolivia':'Carnet de identidad'};
+document.getElementById('documentoRetiroLabel').innerText=docLabels[paisRetiro]||'Documento de identidad';
+function actualizarEtiquetasRetiro(){const m=metodoRetiroEl.value;const digital=['Yape','Nequi','Culqi','Pago Móvil','Zelle','PayPal','Mercado Pago'];document.getElementById('cuentaRetiroLabel').innerText=digital.includes(m)?'Teléfono, correo o identificador del medio':'Número de cuenta, teléfono o identificador';document.getElementById('cuentaRetiro').placeholder=digital.includes(m)?'Teléfono, correo o identificador':'Número de cuenta o teléfono';}
+metodoRetiroEl.addEventListener('change',actualizarEtiquetasRetiro);actualizarEtiquetasRetiro();
 let montoRetiro=Math.max(RETIRAR_MIN,LEVELS[0]); const modalRetiro=document.getElementById('modalRetiro'); function abrirRetiro(){document.getElementById('saldoModalRetiro').innerText=money(usdToLocal(saldoActual));modalRetiro.style.display='flex';cargarMisRetiros()} function cerrarRetiro(){modalRetiro.style.display='none'} document.getElementById('btn-retiro-top').onclick=abrirRetiro;
-const retirosBase=[RETIRAR_MIN,RETIRAR_MIN*2,RETIRAR_MIN*4]; const rb=document.getElementById('montosRetiroBtn'); retirosBase.forEach((v,i)=>{let b=document.createElement('button');b.type='button';b.dataset.v=v;b.textContent=money(v);if(i===0)b.classList.add('active');b.onclick=()=>{document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRetiro=Number(v);document.getElementById('montoRetiroCustom').value='';document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - '+money(montoRetiro)};rb.appendChild(b)}); let allb=document.createElement('button');allb.type='button';allb.dataset.v='all';allb.textContent='Todo';allb.onclick=()=>{montoRetiro=usdToLocal(saldoActual);document.getElementById('montoRetiroCustom').value=Math.floor(montoRetiro);document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active'));allb.classList.add('active');document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - '+money(montoRetiro)};rb.appendChild(allb);
-document.getElementById('montoRetiroCustom').placeholder='Otro monto '+SYMBOL+' (mín. '+money(RETIRAR_MIN)+')';document.getElementById('montoRetiroCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRetiro=v;document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - '+money(v)}};
-document.getElementById('btnEnviarRetiro').onclick=async()=>{let banco=document.getElementById('bancoRetiro').value.trim();if(!banco)return alert('Indica tu cuenta o medio de retiro');if(montoRetiro<RETIRAR_MIN)return alert('El retiro mínimo es '+money(RETIRAR_MIN));if(montoRetiro>usdToLocal(saldoActual))return alert('Saldo insuficiente');document.getElementById('btnEnviarRetiro').innerText='⏳ Sending...';let res=await fetch('/api/solicitar-retiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto:montoRetiro,banco_info:banco})});let j=await res.json();if(j.ok){alert('✅ Request sent');cerrarRetiro();cargarMisRetiros()}else{alert(j.msg);document.getElementById('btnEnviarRetiro').innerText='💸 Request Withdrawal - '+money(montoRetiro)}};
+const retirosBase=[RETIRAR_MIN,RETIRAR_MIN*2,RETIRAR_MIN*4]; const rb=document.getElementById('montosRetiroBtn'); retirosBase.forEach((v,i)=>{let b=document.createElement('button');b.type='button';b.dataset.v=v;b.textContent=money(v);if(i===0)b.classList.add('active');b.onclick=()=>{document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active'));b.classList.add('active');montoRetiro=Number(v);document.getElementById('montoRetiroCustom').value='';document.getElementById('btnEnviarRetiro').innerText='💸 Solicitar retiro - '+money(montoRetiro)};rb.appendChild(b)}); let allb=document.createElement('button');allb.type='button';allb.dataset.v='all';allb.textContent='Todo';allb.onclick=()=>{montoRetiro=usdToLocal(saldoActual);document.getElementById('montoRetiroCustom').value=Math.floor(montoRetiro);document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active'));allb.classList.add('active');document.getElementById('btnEnviarRetiro').innerText='💸 Solicitar retiro - '+money(montoRetiro)};rb.appendChild(allb);
+document.getElementById('montoRetiroCustom').placeholder='Otro monto '+SYMBOL+' (mín. '+money(RETIRAR_MIN)+')';document.getElementById('montoRetiroCustom').oninput=e=>{let v=Number(e.target.value);if(v>0){montoRetiro=v;document.querySelectorAll('#montosRetiroBtn button').forEach(x=>x.classList.remove('active'));document.getElementById('btnEnviarRetiro').innerText='💸 Solicitar retiro - '+money(v)}};
+document.getElementById('btnEnviarRetiro').onclick=async()=>{const metodo=metodoRetiroEl.value;const titular=document.getElementById('titularRetiro').value.trim();const documento=document.getElementById('documentoRetiro').value.trim();const tipoCuenta=document.getElementById('tipoCuentaRetiro').value;const cuenta=document.getElementById('cuentaRetiro').value.trim();if(!metodo||!titular||!documento||!cuenta)return alert('Completa todos los datos obligatorios para el retiro');if(montoRetiro<RETIRAR_MIN)return alert('El retiro mínimo es '+money(RETIRAR_MIN));if(montoRetiro>usdToLocal(saldoActual))return alert('Saldo insuficiente');document.getElementById('btnEnviarRetiro').innerText='⏳ Enviando...';let res=await fetch('/api/solicitar-retiro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto:montoRetiro,metodo_retiro:metodo,titular_retiro:titular,documento_retiro:documento,tipo_cuenta_retiro:tipoCuenta,cuenta_retiro:cuenta})});let j=await res.json();if(j.ok){alert('✅ Solicitud enviada');cerrarRetiro();cargarMisRetiros()}else{alert(j.msg);document.getElementById('btnEnviarRetiro').innerText='💸 Solicitar retiro - '+money(montoRetiro)}};
 async function cargarMisRetiros(){let r=await fetch('/api/mis-retiros');let j=await r.json();if(j.length==0){document.getElementById('listaMisRetiros').innerHTML='';document.getElementById('misRetirosTxt').innerText='';return}document.getElementById('listaMisRetiros').innerHTML='<b>My withdrawals:</b><br>'+j.map(x=>`${x.fecha} ${x.monto_local?money(x.monto_local):money(usdToLocal(x.monto||0))} - ${x.estado}<br>`).join('');let pend=j.filter(x=>x.estado=='pendiente');if(pend.length>0)document.getElementById('misRetirosTxt').innerText='⏳ Pending withdrawal '+(pend[0].monto_local?money(pend[0].monto_local):money(usdToLocal(pend[0].monto||0)))}
 cargarMisRetiros();
 const partidaActual=cierre.getTime();const ultimaPartidaGuardada=localStorage.getItem('ultima_partida');fetch('/api/mis-apuestas-actuales').then(r=>r.json()).then(d=>{if(d.apuestas&&Object.keys(d.apuestas).length>0){let diffRestante=cierre-new Date();if(ultimaPartidaGuardada&&parseInt(ultimaPartidaGuardada)!==partidaActual){localStorage.setItem('ultima_partida',partidaActual);apuestas={};misApuestasGuardadas={};document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));calc();return}if(diffRestante>10000){misApuestasGuardadas=d.apuestas;for(let id in misApuestasGuardadas){let card=document.querySelector(`.card[data-id="${id}"]`);if(card)card.classList.add('selected')}calc();mostrarSalaConteo();localStorage.setItem('ultima_partida',partidaActual)}}});
