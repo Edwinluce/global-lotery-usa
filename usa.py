@@ -1525,6 +1525,14 @@ def api_admin_retiros():
             try: monto_local = usd_to_local(float(r[3] or 0), cfg)
             except Exception: monto_local = r[3] or 0
         moneda = r[5] or cfg['currency']
+        # Convierte los datos antiguos guardados como texto en campos separados.
+        banco_info = r[6] or ""
+        datos_retiro = {}
+        for parte in str(banco_info).replace("\n", "|").split("|"):
+            if ":" in parte:
+                clave, valor = parte.split(":", 1)
+                clave = clave.strip().lower().replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+                datos_retiro[clave] = valor.strip()
         lista.append({
             "id": r[0],
             "user_id": r[1],
@@ -1533,7 +1541,12 @@ def api_admin_retiros():
             "monto": float(r[3] or 0),
             "monto_local": float(monto_local or 0),
             "moneda": moneda,
-            "banco": r[6] or "",
+            "banco": banco_info,
+            "metodo_retiro": datos_retiro.get("metodo", ""),
+            "titular_retiro": datos_retiro.get("titular", ""),
+            "documento_retiro": datos_retiro.get("documento", ""),
+            "tipo_cuenta_retiro": datos_retiro.get("tipo de cuenta", ""),
+            "cuenta_retiro": datos_retiro.get("cuenta/telefono/identificador", datos_retiro.get("cuenta", "")),
             "estado": (r[7] or "pendiente").upper(),
             "fecha": r[8] or "",
             "pais": pais

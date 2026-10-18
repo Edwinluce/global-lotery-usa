@@ -204,11 +204,11 @@ async function abrirRetiros(){
       const estado=(x.estado||'PENDIENTE').toUpperCase();
       const color=estado==='APROBADO'?'#1ee66d':(estado==='RECHAZADO'?'#ff2d2d':'#e9c97a');
       const montoLocal=Number(x.monto_local??x.monto??0), moneda=x.moneda||'USD';
-      const metodo=datoRetiro(info,['metodo','método','medio','payment_method','method']);
-      const titular=datoRetiro(info,['titular','nombre_titular','nombre','titular_cuenta','account_holder']);
-      const documento=datoRetiro(info,['documento','rut','dni','cedula','cédula','identificacion','identificación','document_number']);
-      const tipoCuenta=datoRetiro(info,['tipo_cuenta','tipo de cuenta','tipoCuenta','account_type']);
-      const numero=datoRetiro(info,['numero_cuenta','número_cuenta','cuenta','numero','número','telefono','teléfono','phone','destino','correo','email']);
+      const metodo=x.metodo_retiro||datoRetiro(info,['metodo','método','medio','payment_method','method']);
+      const titular=x.titular_retiro||datoRetiro(info,['titular','nombre_titular','nombre','titular_cuenta','account_holder']);
+      const documento=x.documento_retiro||datoRetiro(info,['documento','rut','dni','cedula','cédula','identificacion','identificación','document_number']);
+      const tipoCuenta=x.tipo_cuenta_retiro||datoRetiro(info,['tipo_cuenta','tipo de cuenta','tipoCuenta','account_type']);
+      const numero=x.cuenta_retiro||datoRetiro(info,['cuenta/telefono/identificador','numero_cuenta','número_cuenta','cuenta','numero','número','telefono','teléfono','phone','destino','correo','email']);
       const banco=datoRetiro(info,['banco','entidad','institucion','institución']);
       const conocidos=['metodo','método','medio','payment_method','method','titular','nombre_titular','nombre','titular_cuenta','account_holder','documento','rut','dni','cedula','cédula','identificacion','identificación','document_number','tipo_cuenta','tipo de cuenta','tipocuenta','account_type','numero_cuenta','número_cuenta','cuenta','numero','número','telefono','teléfono','phone','destino','correo','email','banco','entidad','institucion','institución'];
       const extras=Object.entries(info).filter(([k,v])=>v!==undefined&&v!==null&&String(v).trim()!==''&&!conocidos.includes(String(k).toLowerCase()));
