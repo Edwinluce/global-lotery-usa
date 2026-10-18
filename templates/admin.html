@@ -178,33 +178,49 @@ function escAdmin(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<
 cargarEstadoAdmin();
 setInterval(cargarEstadoAdmin,5000);
 
+function datosRetiro(raw){
+  if(raw && typeof raw === 'object') return raw;
+  const txt=String(raw??'').trim();
+  if(!txt) return {};
+  try { const obj=JSON.parse(txt); if(obj && typeof obj==='object') return obj; } catch(e) {}
+  const out={};
+  txt.split(/\r?\n|[;|]/).forEach(parte=>{const i=parte.indexOf(':');if(i>0)out[parte.slice(0,i).trim()]=parte.slice(i+1).trim();});
+  return Object.keys(out).length ? out : {detalle:txt};
+}
+function datoRetiro(obj, keys){
+  for(const k of keys){const v=obj?.[k];if(v!==undefined&&v!==null&&String(v).trim()!=='')return String(v).trim();}
+  return '';
+}
 async function abrirRetiros(){
   document.getElementById('modalRetiros').style.display='flex';
-  document.getElementById('tablaRetiros').innerHTML='<tr><td>Cargando retiros...</td></tr>';
+  document.getElementById('tablaRetiros').innerHTML='<tr><td colspan="13">Cargando retiros...</td></tr>';
   try{
-    let r=await fetch('/api/admin/retiros');
-    let d=await r.json();
-    if(!Array.isArray(d) || !d.length){document.getElementById('tablaRetiros').innerHTML='<tr><td>No hay retiros registrados</td></tr>'; return;}
-    let h='<tr><th>ID</th><th>User</th><th>Monto</th><th>Medio</th><th>Estado</th><th>Acción</th></tr>';
+    const r=await fetch('/api/admin/retiros',{cache:'no-store'});
+    const d=await r.json();
+    if(!Array.isArray(d)||!d.length){document.getElementById('tablaRetiros').innerHTML='<tr><td colspan="13">No hay retiros registrados</td></tr>';return;}
+    let h='<tr><th>ID</th><th>Usuario</th><th>Email</th><th>País</th><th>Monto solicitado</th><th>Método</th><th>Titular</th><th>Documento</th><th>Tipo de cuenta</th><th>Número / destino</th><th>Banco / otros datos</th><th>Estado</th><th>Acción</th></tr>';
     d.forEach(x=>{
+      const info=datosRetiro(x.banco);
       const estado=(x.estado||'PENDIENTE').toUpperCase();
       const color=estado==='APROBADO'?'#1ee66d':(estado==='RECHAZADO'?'#ff2d2d':'#e9c97a');
-      const montoLocal=Number(x.monto_local||x.monto||0);
-      const moneda=x.moneda||'USD';
+      const montoLocal=Number(x.monto_local??x.monto??0), moneda=x.moneda||'USD';
+      const metodo=datoRetiro(info,['metodo','método','medio','payment_method','method']);
+      const titular=datoRetiro(info,['titular','nombre_titular','nombre','titular_cuenta','account_holder']);
+      const documento=datoRetiro(info,['documento','rut','dni','cedula','cédula','identificacion','identificación','document_number']);
+      const tipoCuenta=datoRetiro(info,['tipo_cuenta','tipo de cuenta','tipoCuenta','account_type']);
+      const numero=datoRetiro(info,['numero_cuenta','número_cuenta','cuenta','numero','número','telefono','teléfono','phone','destino','correo','email']);
+      const banco=datoRetiro(info,['banco','entidad','institucion','institución']);
+      const conocidos=['metodo','método','medio','payment_method','method','titular','nombre_titular','nombre','titular_cuenta','account_holder','documento','rut','dni','cedula','cédula','identificacion','identificación','document_number','tipo_cuenta','tipo de cuenta','tipocuenta','account_type','numero_cuenta','número_cuenta','cuenta','numero','número','telefono','teléfono','phone','destino','correo','email','banco','entidad','institucion','institución'];
+      const extras=Object.entries(info).filter(([k,v])=>v!==undefined&&v!==null&&String(v).trim()!==''&&!conocidos.includes(String(k).toLowerCase()));
+      const detalles=extras.map(([k,v])=>`${esc(k)}: ${esc(typeof v==='object'?JSON.stringify(v):v)}`).join('<br>');
       let btns='';
-      if(estado==='PENDIENTE'){
-        btns=`<button onclick="aprobarRetiro(${x.id})" style="background:#1ee66d;color:#000;padding:6px 10px;border:0;border-radius:8px;font-weight:800;cursor:pointer">✅ APROBAR</button><br><br><button onclick="rechazarRetiro(${x.id})" style="background:#ff2d2d;color:#fff;padding:5px 10px;border:0;border-radius:8px;cursor:pointer">❌ RECHAZAR</button>`;
-      }else{
-        btns=`<span style="color:${color};font-weight:900">${estado}</span>`;
-      }
-      h+=`<tr><td>#${x.id}</td><td>${x.user||'-'}<br><small style="opacity:.7">${x.email||''}</small><br><small>${x.fecha||''}</small></td><td><b>${moneda} ${montoLocal.toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2})}</b><br><small style="opacity:.6">USD ${Number(x.monto||0).toFixed(4)}</small></td><td style="word-break:break-all">${x.banco||'-'}</td><td style="color:${color};font-weight:900">${estado}</td><td>${btns}</td></tr>`;
+      if(estado==='PENDIENTE')btns=`<button onclick="aprobarRetiro(${Number(x.id)})" style="background:#1ee66d;color:#000;padding:6px 10px;border:0;border-radius:8px;font-weight:800;cursor:pointer">✅ APROBAR</button><br><br><button onclick="rechazarRetiro(${Number(x.id)})" style="background:#ff2d2d;color:#fff;padding:5px 10px;border:0;border-radius:8px;cursor:pointer">❌ RECHAZAR</button>`;
+      else btns=`<span style="color:${color};font-weight:900">${esc(estado)}</span>`;
+      h+=`<tr><td>#${Number(x.id)||''}<br><small>${esc(x.fecha||'')}</small></td><td>${esc(x.user||x.user_id||'-')}</td><td style="overflow-wrap:anywhere">${esc(x.email||'-')}</td><td>${esc(x.pais||'-')}</td><td><b>${esc(moneda)} ${montoLocal.toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2})}</b><br><small style="opacity:.6">USD ${Number(x.monto||0).toFixed(4)}</small></td><td>${esc(metodo||'-')}</td><td>${esc(titular||'-')}</td><td>${esc(documento||'-')}</td><td>${esc(tipoCuenta||'-')}</td><td style="overflow-wrap:anywhere">${esc(numero||'-')}</td><td style="overflow-wrap:anywhere">${esc(banco||'')}${banco&&detalles?'<br>':''}${detalles||(!banco&&!metodo&&!titular&&!documento&&!tipoCuenta&&!numero?esc(info.detalle||'-'):'')}</td><td style="color:${color};font-weight:900">${esc(estado)}</td><td>${btns}</td></tr>`;
     });
     document.getElementById('tablaRetiros').innerHTML=h;
-  }catch(e){
-    document.getElementById('tablaRetiros').innerHTML='<tr><td>Error cargando retiros: '+e+'</td></tr>';
-  }
+  }catch(e){document.getElementById('tablaRetiros').innerHTML='<tr><td colspan="13">Error cargando retiros: '+esc(e?.message||e)+'</td></tr>';}
 }
-
 async function aprobarRetiro(id){
   if(!confirm('¿Aprobar retiro #'+id+'? El saldo ya quedó reservado al solicitarlo.')) return;
   let res=await fetch('/api/aprobar-retiro',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF_TOKEN},body:JSON.stringify({id})});
