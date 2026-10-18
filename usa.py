@@ -1012,10 +1012,15 @@ def api_saldo():
 
 @app.route('/api/mis-apuestas')
 def api_mis_apuestas():
-    if 'user' not in session: return jsonify([])
+    if 'user' not in session: return jsonify([]), 401
     con=db(); c=con.cursor()
+    c.execute(q("SELECT pais FROM usuarios WHERE id=?"), (session['user'],))
+    usuario=c.fetchone()
+    pais=usuario[0] if usuario and usuario[0] in COUNTRY_CONFIG else 'USA'
+    cfg=get_country_config(pais)
     c.execute(q("""
-        SELECT s.id, s.fecha_hora_cierre, an.nombre, a.monto, s.animal_ganador, s.estado
+        SELECT s.id, s.fecha_hora_cierre, an.nombre, a.monto, s.animal_ganador, s.estado,
+               a.monto_local, a.moneda
         FROM apuestas a
         JOIN sorteos s ON s.id=a.sorteo_id
         JOIN animales an ON an.id=a.animal_id
@@ -1027,13 +1032,18 @@ def api_mis_apuestas():
         gano="En juego"
         if r[5] in ('PAGADO','FINALIZADO') and r[4]:
             try:
-                c2=db(); cc=c2.cursor()
+                cc=con.cursor()
                 cc.execute(q("SELECT nombre FROM animales WHERE id=?"), (r[4],))
                 nom=cc.fetchone()
                 gano=nom[0] if nom else f"ID {r[4]}"
-                c2.close()
             except: gano=f"ID {r[4]}"
-        lista.append({"sorteo":r[0],"fecha":r[1][:16] if r[1] else "","mi_animal":r[2],"monto":r[3],"ganador":gano,"estado":r[5]})
+        # Preferir el importe local guardado al apostar. Para apuestas antiguas
+        # sin monto_local, convertir el monto USD usando la moneda del usuario.
+        try:
+            monto_local=float(r[6]) if r[6] is not None else usd_to_local(float(r[3] or 0), cfg)
+        except Exception:
+            monto_local=float(r[3] or 0)
+        lista.append({"sorteo":r[0],"fecha":r[1][:16] if r[1] else "","mi_animal":r[2],"monto":monto_local,"moneda":r[7] or cfg['currency'],"simbolo":cfg['symbol'],"ganador":gano,"estado":r[5]})
     con.close()
     return jsonify(lista)
 

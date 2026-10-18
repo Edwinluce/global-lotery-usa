@@ -85,7 +85,7 @@ async function verMisApuestas(){
   let r=await fetch('/api/mis-apuestas'); let data=await r.json();
   if(data.length==0){document.getElementById('contenidoHistorial').innerHTML='Aún no has apostado'; return;}
   let html='<table style="width:100%;border-collapse:collapse"><tr><th>Sorteo</th><th>Mi Animal</th><th>Ganó</th><th>Monto</th></tr>';
-  data.forEach(x=>{let color = x.mi_animal==x.ganador?'#1ee66d':'#fff'; html+=`<tr><td>#${x.sorteo}</td><td>${x.mi_animal}</td><td style="color:${color};font-weight:bold">${x.ganador}</td><td>S/${x.monto}</td></tr>`});
+  data.forEach(x=>{let color = x.mi_animal==x.ganador?'#1ee66d':'#fff'; let moneda=x.simbolo||SYMBOL; let dec=Number(GAME_CONFIG.decimals||0); let monto=Number(x.monto||0).toLocaleString('es-CL',{minimumFractionDigits:dec,maximumFractionDigits:dec}); html+=`<tr><td>#${x.sorteo}</td><td>${x.mi_animal}</td><td style="color:${color};font-weight:bold">${x.ganador}</td><td>${moneda}${monto}</td></tr>`});
   html+='</table>';
   document.getElementById('contenidoHistorial').innerHTML=html;
 }
